@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, hardening/backend-devops ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.DB_PASS }}
+          MYSQL_DATABASE: arisgourmet
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: |
+          cd backend
+          npm ci
+      - name: Run migrations
+        env:
+          DB_HOST: localhost
+          DB_PORT: 3306
+          DB_NAME: arisgourmet
+          DB_USER: aris_user
+          DB_PASS: ${{ secrets.DB_PASS }}
+        run: |
+          cd backend
+          npm run migrate:run
+      - name: Run tests
+        run: |
+          cd backend
+          npm test --silent

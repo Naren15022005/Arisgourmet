@@ -1,0 +1,40 @@
+version: '3.8'
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: arisgourmet
+      MYSQL_USER: aris_user
+      MYSQL_PASSWORD: ${DB_PASS:-s3cr3t}
+    ports:
+      - '3306:3306'
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build: ../backend
+    env_file:
+      - .env
+    depends_on:
+      - mysql
+      - redis
+    ports:
+      - '4000:4000'
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
