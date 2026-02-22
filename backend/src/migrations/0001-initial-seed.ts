@@ -4,15 +4,18 @@ export class InitialSeed1676980000000 implements MigrationInterface {
   name = 'InitialSeed1676980000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Insert some sample mesas
-    await queryRunner.query(`INSERT INTO mesa (id, codigo_qr, estado, created_at, updated_at) VALUES 
-      (UUID(), 'MESA-1', 'libre', NOW(), NOW()),
-      (UUID(), 'MESA-2', 'libre', NOW(), NOW())`);
+    // Insert a default restaurante and some sample mesas/productos that match the DDL
+    await queryRunner.query(`INSERT INTO restaurantes (nombre) VALUES ('Default Restaurante')`);
 
-    // Insert sample productos
-    await queryRunner.query(`INSERT INTO producto (id, nombre, descripcion, precio, disponible, tiempo_base_minutos, created_at, updated_at) VALUES 
-      (UUID(), 'Café', 'Café negro', 1.50, true, 5, NOW(), NOW()),
-      (UUID(), 'Ensalada', 'Ensalada mixta', 4.50, true, 10, NOW(), NOW())`);
+    // Use the newly created restaurante (assume id=1 on fresh DB)
+    await queryRunner.query(`INSERT INTO mesas (restaurante_id, codigo, nombre, estado) VALUES 
+      (1, 'MESA-1', 'Mesa 1', 'libre'),
+      (1, 'MESA-2', 'Mesa 2', 'libre')`);
+
+    // Insert sample productos with precio in cents and available flag
+    await queryRunner.query(`INSERT INTO productos (restaurante_id, nombre, descripcion, precio_cents, disponible) VALUES 
+      (1, 'Café', 'Café negro', 150, 1),
+      (1, 'Ensalada', 'Ensalada mixta', 450, 1)`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

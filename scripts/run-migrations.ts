@@ -1,5 +1,11 @@
 import 'reflect-metadata';
-import { AppDataSource } from '../src/data-source';
+import * as dotenv from 'dotenv';
+
+// Load infra/.env so data-source picks up DB credentials from infra
+dotenv.config({ path: 'infra/.env' });
+
+// Require AppDataSource after dotenv config so environment variables are loaded
+const { AppDataSource } = require('../backend/src/data-source');
 
 async function run() {
   try {

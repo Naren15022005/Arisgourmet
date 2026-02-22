@@ -1,4 +1,8 @@
 import 'reflect-metadata';
+import * as dotenv from 'dotenv';
+import { resolve } from 'path';
+
+dotenv.config({ path: process.env.ENV_PATH || resolve(__dirname, '../../.env') });
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { metricsMiddleware } from './metrics';
