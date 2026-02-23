@@ -58,12 +58,29 @@ jobs:
         working-directory: backend
         env:
           DATABASE_URL: mysql://ci:ci_pass@mysql:3306/arisgourmet
-          REDIS_URL: redis://localhost:6379
+          REDIS_URL: redis://redis:6379
         run: npm test --silent
+      - name: Gather test artifacts
+        id: gather
+        if: failure()
+        run: |
+          mkdir -p artifacts
+          if [ -d backend/test-results ]; then cp -r backend/test-results artifacts/ || true; fi
+          if [ -d backend/logs ]; then cp -r backend/logs artifacts/ || true; fi
+          shopt -s nullglob || true
+          for f in backend/jest*.json; do
+            cp "$f" artifacts/ || true
+          done
+          if [ -n "$(ls -A artifacts 2>/dev/null)" ]; then
+            tar -czf artifacts.tar.gz artifacts
+            echo "artifacts=artifacts.tar.gz" >> $GITHUB_OUTPUT
+          else
+            echo "artifacts=" >> $GITHUB_OUTPUT
+          fi
 
       - name: Upload test results
-        if: failure()
+        if: steps.gather.outputs.artifacts != ''
         uses: actions/upload-artifact@v4
         with:
           name: backend-test-logs
-          path: backend/test-results || backend/logs || backend/jest*.json
+          path: ${{ steps.gather.outputs.artifacts }}
