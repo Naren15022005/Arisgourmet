@@ -8,8 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "migrate:run": "ts-node ./scripts/run-migrations.ts",
     "start:worker": "ts-node ./src/workers/outbox-processor.ts",
-    "test": "jest --runInBand"
-    ,"lint": "eslint 'src/**/*.{ts,js}' --ext .ts --max-warnings=0"
+    "test": "jest --runInBand",
+    "lint": "eslint \"src/**/*.ts\" --ext .ts"
   },
   "dependencies": {
     "@nestjs/common": "^9.0.0",

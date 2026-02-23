@@ -16,7 +16,6 @@ export function metricsMiddleware() {
     const end = res.end;
     res.end = function (chunk: any, encoding: any) {
       httpRequestCounter.inc({ method: req.method, path: req.path || req.url, status: String(res.statusCode) }, 1);
-      // @ts-expect-error temporary: overriding res.end to collect metrics
       res.end = end;
       return res.end(chunk, encoding);
     };

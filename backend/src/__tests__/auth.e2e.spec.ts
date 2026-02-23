@@ -4,6 +4,7 @@ import { INestApplication } from '@nestjs/common';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import * as bcrypt from 'bcryptjs';
+import { randomUUID } from 'crypto';
 import { DataSource } from 'typeorm';
 
 dotenv.config({ path: resolve(__dirname, '../../.env') });
@@ -44,15 +45,15 @@ describe('Auth API (integration)', () => {
     // create restaurante + user directly in canonical singular tables
     const ds = app.get(DataSource) as DataSource;
     const restName = `test_rest_${Date.now()}`;
-    const restId = require('crypto').randomUUID();
+    const restId = randomUUID();
     await ds.query('INSERT INTO restaurante (id, nombre) VALUES (?, ?)', [restId, restName]);
     const rows = await ds.query('SELECT id FROM restaurante WHERE id = ? LIMIT 1', [restId]);
     const restauranteId = rows[0].id;
     const passHash = await bcrypt.hash(password, 10);
-    await ds.query('INSERT IGNORE INTO role (id, nombre) VALUES (?, ?)', [require('crypto').randomUUID(), 'cliente']);
+    await ds.query('INSERT IGNORE INTO role (id, nombre) VALUES (?, ?)', [randomUUID(), 'cliente']);
     await ds.query(
       'INSERT INTO usuario (id, restaurante_id, email, nombre, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)',
-      [require('crypto').randomUUID(), restauranteId, email, 'Tester', passHash, 'cliente'],
+      [randomUUID(), restauranteId, email, 'Tester', passHash, 'cliente'],
     );
 
     // login

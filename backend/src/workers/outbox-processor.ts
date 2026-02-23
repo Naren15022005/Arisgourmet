@@ -141,6 +141,7 @@ async function processBatch(redisUrl = process.env.REDIS_URL || 'redis://localho
 
 async function main() {
   console.log('Outbox processor starting...', { workerId, maxAttempts: MAX_ATTEMPTS, batchSize: BATCH_SIZE });
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       await processBatch();
