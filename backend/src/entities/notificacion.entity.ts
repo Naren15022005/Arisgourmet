@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
 
-@Entity()
+@Entity({ name: 'notificacion' })
 export class Notificacion {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -14,9 +14,9 @@ export class Notificacion {
   @Column({ nullable: true })
   usuario_id: string;
 
-  @Column({ default: false })
+  @Column({ type: 'tinyint', width: 1, default: 0 })
   leido: boolean;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'datetime' })
   created_at: Date;
 }

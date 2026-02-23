@@ -29,6 +29,12 @@ export class Outbox {
   @Column({ name: 'next_retry_at', type: 'datetime', nullable: true })
   next_retry_at?: Date | null;
 
+  @Column({ name: 'dlq', type: 'boolean', default: false })
+  dlq: boolean;
+
+  @Column({ name: 'dlq_reason', type: 'text', nullable: true })
+  dlq_reason?: string | null;
+
   @Column({ name: 'processed_at', type: 'datetime', nullable: true })
   processed_at?: Date | null;
 

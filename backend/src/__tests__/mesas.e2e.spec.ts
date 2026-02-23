@@ -19,16 +19,22 @@ describe('Mesas API (integration)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    const { AppModule } = await import('../app.module');
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    app = moduleFixture.createNestApplication();
-    await app.init();
+    try {
+      const { AppModule } = await import('../app.module');
+      const moduleFixture: TestingModule = await Test.createTestingModule({
+        imports: [AppModule],
+      }).compile();
+      app = moduleFixture.createNestApplication();
+      await app.init();
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('beforeAll mesas.e2e.spec.ts error:', err && err.stack ? err.stack : err);
+      throw err;
+    }
   }, 20000);
 
   afterAll(async () => {
-    await app.close();
+    if (app) await app.close();
   });
 
   it('GET /api/mesas should return 200 and an array', async () => {

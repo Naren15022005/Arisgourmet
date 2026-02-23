@@ -1,0 +1,1 @@
+SELECT id, timestamp, name FROM migrations ORDER BY timestamp;
