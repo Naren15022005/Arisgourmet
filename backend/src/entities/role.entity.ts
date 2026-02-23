@@ -10,6 +10,6 @@ export class Role {
   nombre: string;
 
   @ManyToMany(() => Permiso, (permiso) => permiso.roles, { cascade: true })
-  @JoinTable({ name: 'role_permisos', joinColumn: { name: 'role_id' }, inverseJoinColumn: { name: 'permiso_id' } })
+  @JoinTable({ name: 'role_permisos', joinColumn: { name: 'roleId' }, inverseJoinColumn: { name: 'permisoId' } })
   permisos: Permiso[];
 }

@@ -12,14 +12,14 @@ export class MesasService {
   ) {}
 
   async findAll(restauranteId?: string | number) {
-    const restId = restauranteId ? Number(restauranteId) : undefined;
+    const restId = restauranteId ? String(restauranteId) : undefined;
     const where = restId ? { restaurante_id: restId } : {};
     return this.mesaRepo.find({ where });
   }
 
   async activate(codigo: string, restauranteId?: string | number) {
     const where: any = { codigo };
-    const restId = restauranteId ? Number(restauranteId) : undefined;
+    const restId = restauranteId ? String(restauranteId) : undefined;
     if (restId) where.restaurante_id = restId;
 
     const mesa = await this.mesaRepo.findOneBy(where);
@@ -32,7 +32,7 @@ export class MesasService {
 
   async release(codigo: string, restauranteId?: string | number) {
     const where: any = { codigo };
-    const restId = restauranteId ? Number(restauranteId) : undefined;
+    const restId = restauranteId ? String(restauranteId) : undefined;
     if (restId) where.restaurante_id = restId;
 
     const mesa = await this.mesaRepo.findOneBy(where);

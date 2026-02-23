@@ -10,8 +10,31 @@ export class InitialMigration00011760000000000 implements MigrationInterface {
     const candidateDirname = resolve(__dirname, '../../../infra/ddls/core_schema.sql');
     const sqlPath = existsSync(candidateCwd) ? candidateCwd : candidateDirname;
     const sql = readFileSync(sqlPath, 'utf8');
-    // Execute the full SQL DDL. AppDataSource is configured with multipleStatements.
-    await queryRunner.query(sql);
+
+    const cleaned = sql
+      .split(/\r?\n/)
+      .filter((line) => {
+        const l = line.trim().toUpperCase();
+        return !(l.startsWith('CREATE DATABASE') || l.startsWith('USE '));
+      })
+      .join('\n');
+
+    const statements = cleaned
+      .split(/;\s*\n/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    for (const stmt of statements) {
+      try {
+        await queryRunner.query(stmt);
+      } catch (err: any) {
+        const msg = String(err && err.message ? err.message : err);
+        if (msg.includes('already exists') || msg.includes('Duplicate key name') || msg.includes('Duplicate column name')) {
+          continue;
+        }
+        throw err;
+      }
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

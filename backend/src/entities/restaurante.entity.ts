@@ -14,9 +14,9 @@ export class Restaurante {
   @Column({ nullable: true })
   telefono?: string;
 
-  @CreateDateColumn({ type: 'datetime', precision: 6 })
+  @CreateDateColumn({ type: 'datetime' })
   created_at: Date;
 
-  @UpdateDateColumn({ type: 'datetime', precision: 6 })
+  @UpdateDateColumn({ type: 'datetime' })
   updated_at: Date;
 }

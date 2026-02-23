@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Mesa } from './mesa.entity';
 
-@Entity()
+@Entity({ name: 'mesa_sesion' })
 export class MesaSesion {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -15,15 +15,15 @@ export class MesaSesion {
   @Column({ nullable: true })
   cliente_nombre: string;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   inicio_at: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   fin_at: Date;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'datetime' })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'datetime' })
   updated_at: Date;
 }

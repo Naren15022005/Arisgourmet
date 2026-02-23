@@ -19,9 +19,6 @@ export class Mesa {
   @Column({ name: 'codigo_qr', unique: true })
   codigo: string;
 
-  @Column({ name: 'nombre', nullable: true, select: false })
-  nombre?: string;
-
   @Column({ type: 'enum', enum: MesaEstado, default: MesaEstado.LIBRE })
   estado: MesaEstado;
 

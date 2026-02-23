@@ -1,0 +1,2 @@
+SELECT COUNT(*) AS total, SUM(CASE WHEN id = '' THEN 1 ELSE 0 END) AS empty_ids, SUM(CASE WHEN id IS NULL THEN 1 ELSE 0 END) AS null_ids FROM refresh_tokens;
+SELECT id, token_hash, usuario_id FROM refresh_tokens LIMIT 20;

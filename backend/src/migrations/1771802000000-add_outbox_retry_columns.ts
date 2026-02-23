@@ -18,6 +18,16 @@ export class AddOutboxRetryColumns1771802000000 implements MigrationInterface {
     if (!hasNextRetry || hasNextRetry[0].c === 0) {
       await queryRunner.query(`ALTER TABLE outbox ADD COLUMN next_retry_at DATETIME NULL`);
     }
+
+    const hasDlq = await queryRunner.query("SELECT COUNT(*) as c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='outbox' AND COLUMN_NAME='dlq'");
+    if (!hasDlq || hasDlq[0].c === 0) {
+      await queryRunner.query(`ALTER TABLE outbox ADD COLUMN dlq BOOLEAN NOT NULL DEFAULT FALSE`);
+    }
+
+    const hasDlqReason = await queryRunner.query("SELECT COUNT(*) as c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='outbox' AND COLUMN_NAME='dlq_reason'");
+    if (!hasDlqReason || hasDlqReason[0].c === 0) {
+      await queryRunner.query(`ALTER TABLE outbox ADD COLUMN dlq_reason TEXT NULL`);
+    }
   }
 
   public async down(_queryRunner: QueryRunner): Promise<void> {

@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
 
-@Entity()
+@Entity({ name: 'evento' })
 export class Evento {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -9,8 +9,8 @@ export class Evento {
   tipo: string;
 
   @Column('text', { nullable: true })
-  metadata: string;
+  metadata?: string | null;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'datetime', precision: 6 })
   created_at: Date;
 }

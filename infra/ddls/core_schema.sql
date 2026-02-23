@@ -1,185 +1,188 @@
+-- Canonical schema DDL for ArisGourmet (MySQL, InnoDB, utf8mb4)
+-- Source of truth: DB (singular table names, varchar(36) ids)
 
--- Core schema DDL for ArisGourmet (MySQL, InnoDB, utf8mb4)
--- Generated: 2026-02-21
--- Contains core tables, refresh tokens and outbox for robust backend operation
+SET FOREIGN_KEY_CHECKS = 0;
 
-SET FOREIGN_KEY_CHECKS=0;
-
-CREATE DATABASE IF NOT EXISTS arisgourmet DEFAULT CHARACTER SET = utf8mb4 DEFAULT COLLATE = utf8mb4_unicode_ci;
-USE arisgourmet;
-
--- Restaurantes
-CREATE TABLE IF NOT EXISTS restaurantes (
-	id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	nombre VARCHAR(200) NOT NULL,
-	metadata JSON NULL,
-	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Roles
-CREATE TABLE IF NOT EXISTS roles (
-	id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	nombre VARCHAR(50) NOT NULL UNIQUE,
-	descripcion VARCHAR(255) NULL
+CREATE TABLE IF NOT EXISTS restaurante (
+  id VARCHAR(36) NOT NULL,
+  nombre VARCHAR(255) NOT NULL,
+  direccion VARCHAR(255) NULL,
+  telefono VARCHAR(255) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Permisos
-CREATE TABLE IF NOT EXISTS permisos (
-	id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	nombre VARCHAR(100) NOT NULL UNIQUE,
-	descripcion VARCHAR(255) NULL
+CREATE TABLE IF NOT EXISTS role (
+  id VARCHAR(36) NOT NULL,
+  nombre VARCHAR(255) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY UQ_role_nombre (nombre)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Role-Permiso join
+CREATE TABLE IF NOT EXISTS permiso (
+  id VARCHAR(36) NOT NULL,
+  clave VARCHAR(255) NOT NULL,
+  descripcion VARCHAR(255) NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY UQ_permiso_clave (clave)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS role_permisos (
-	role_id SMALLINT UNSIGNED NOT NULL,
-	permiso_id SMALLINT UNSIGNED NOT NULL,
-	PRIMARY KEY(role_id, permiso_id),
-	CONSTRAINT fk_role_perm_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
-	CONSTRAINT fk_role_perm_perm FOREIGN KEY (permiso_id) REFERENCES permisos(id) ON DELETE CASCADE
+  roleId VARCHAR(36) NOT NULL,
+  permisoId VARCHAR(36) NOT NULL,
+  PRIMARY KEY (roleId, permisoId),
+  INDEX IDX_role (roleId),
+  INDEX IDX_permiso (permisoId),
+  CONSTRAINT FK_role_permisos_role FOREIGN KEY (roleId) REFERENCES role(id) ON DELETE CASCADE,
+  CONSTRAINT FK_role_permisos_permiso FOREIGN KEY (permisoId) REFERENCES permiso(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Usuarios
-CREATE TABLE IF NOT EXISTS usuarios (
-	id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	restaurante_id BIGINT UNSIGNED NOT NULL,
-	email VARCHAR(200) NOT NULL,
-	password_hash VARCHAR(255) NOT NULL,
-	nombre VARCHAR(200) NULL,
-	role_id SMALLINT UNSIGNED NOT NULL DEFAULT 1,
-	metadata JSON NULL,
-	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-	CONSTRAINT fk_usuarios_restaurante FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE,
-	CONSTRAINT fk_usuarios_role FOREIGN KEY (role_id) REFERENCES roles(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE UNIQUE INDEX idx_usuarios_rest_email ON usuarios(restaurante_id, email);
-
--- Mesas
-CREATE TABLE IF NOT EXISTS mesas (
-	id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	restaurante_id BIGINT UNSIGNED NOT NULL,
-	codigo VARCHAR(100) NOT NULL,
-	nombre VARCHAR(200) NULL,
-	estado ENUM('libre','ocupada','reservada') NOT NULL DEFAULT 'libre',
-	metadata JSON NULL,
-	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-	CONSTRAINT fk_mesas_restaurante FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE UNIQUE INDEX idx_mesas_rest_codigo ON mesas(restaurante_id, codigo);
-
--- Sesiones de mesa
-CREATE TABLE IF NOT EXISTS sesiones_mesa (
-	id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	restaurante_id BIGINT UNSIGNED NOT NULL,
-	mesa_id BIGINT UNSIGNED NOT NULL,
-	usuario_id BIGINT UNSIGNED NULL,
-	token VARCHAR(255) NULL,
-	started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	ended_at TIMESTAMP NULL,
-	metadata JSON NULL,
-	CONSTRAINT fk_sesion_mesa_rest FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE,
-	CONSTRAINT fk_sesion_mesa_mesa FOREIGN KEY (mesa_id) REFERENCES mesas(id) ON DELETE CASCADE,
-	CONSTRAINT fk_sesion_mesa_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
+CREATE TABLE IF NOT EXISTS usuario (
+  id VARCHAR(36) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  nombre VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('cliente','cocina','host','admin') NOT NULL DEFAULT 'cliente',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  restaurante_id VARCHAR(255) NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY IDX_usuario_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Productos
-CREATE TABLE IF NOT EXISTS productos (
-	id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	restaurante_id BIGINT UNSIGNED NOT NULL,
-	nombre VARCHAR(255) NOT NULL,
-	descripcion TEXT NULL,
-	precio_cents INT UNSIGNED NOT NULL DEFAULT 0,
-	disponible BOOLEAN NOT NULL DEFAULT TRUE,
-	metadata JSON NULL,
-	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-	CONSTRAINT fk_productos_rest FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE INDEX idx_productos_rest ON productos(restaurante_id);
-
--- Pedidos
-CREATE TABLE IF NOT EXISTS pedidos (
-	id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	restaurante_id BIGINT UNSIGNED NOT NULL,
-	mesa_id BIGINT UNSIGNED NULL,
-	usuario_id BIGINT UNSIGNED NULL,
-	estado ENUM('nuevo','en_proceso','listo','servido','cancelado') NOT NULL DEFAULT 'nuevo',
-	total_cents BIGINT UNSIGNED NOT NULL DEFAULT 0,
-	metadata JSON NULL,
-	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-	CONSTRAINT fk_pedidos_rest FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE,
-	CONSTRAINT fk_pedidos_mesa FOREIGN KEY (mesa_id) REFERENCES mesas(id) ON DELETE SET NULL,
-	CONSTRAINT fk_pedidos_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE INDEX idx_pedidos_rest_estado ON pedidos(restaurante_id, estado);
-
--- Items de pedido
-CREATE TABLE IF NOT EXISTS pedido_items (
-	id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	pedido_id BIGINT UNSIGNED NOT NULL,
-	producto_id BIGINT UNSIGNED NOT NULL,
-	cantidad INT UNSIGNED NOT NULL DEFAULT 1,
-	price_cents BIGINT UNSIGNED NOT NULL DEFAULT 0,
-	metadata JSON NULL,
-	CONSTRAINT fk_item_pedido_pedido FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE,
-	CONSTRAINT fk_item_pedido_producto FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE RESTRICT
+CREATE TABLE IF NOT EXISTS mesa (
+  id VARCHAR(36) NOT NULL,
+  codigo_qr VARCHAR(255) NOT NULL,
+  estado ENUM('libre','ocupada','activa','inactiva','liberada') NOT NULL DEFAULT 'libre',
+  ultima_actividad_at DATETIME NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  ocupado TINYINT NOT NULL DEFAULT 0,
+  ocupado_desde TIMESTAMP NULL,
+  restaurante_id VARCHAR(255) NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY IDX_mesa_codigo_qr (codigo_qr)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Historial de estados de pedido
+CREATE TABLE IF NOT EXISTS mesa_sesion (
+  id VARCHAR(36) NOT NULL,
+  mesa_id VARCHAR(36) NOT NULL,
+  cliente_nombre VARCHAR(255) NULL,
+  inicio_at DATETIME NULL,
+  fin_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX IDX_mesa_sesion_mesa (mesa_id),
+  CONSTRAINT FK_mesa_sesion_mesa FOREIGN KEY (mesa_id) REFERENCES mesa(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS producto (
+  id VARCHAR(36) NOT NULL,
+  nombre VARCHAR(255) NOT NULL,
+  descripcion TEXT NULL,
+  precio DECIMAL(10,2) NOT NULL,
+  disponible TINYINT NOT NULL DEFAULT 1,
+  tiempo_base_minutos INT NOT NULL DEFAULT 0,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  restaurante_id VARCHAR(255) NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pedido (
+  id VARCHAR(36) NOT NULL,
+  mesa_id VARCHAR(255) NOT NULL,
+  estado ENUM('pendiente','aceptado','preparando','listo','entregado','cancelado') NOT NULL DEFAULT 'pendiente',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  restaurante_id VARCHAR(255) NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS item_pedido (
+  id VARCHAR(36) NOT NULL,
+  producto_id VARCHAR(255) NOT NULL,
+  cantidad INT NOT NULL DEFAULT 1,
+  precio_unitario DECIMAL(10,2) NOT NULL,
+  pedidoId VARCHAR(36) NULL,
+  restaurante_id VARCHAR(255) NULL,
+  PRIMARY KEY (id),
+  INDEX IDX_item_pedido_pedido (pedidoId),
+  CONSTRAINT FK_item_pedido_pedido FOREIGN KEY (pedidoId) REFERENCES pedido(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS historial_estado_pedido (
-	id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	pedido_id BIGINT UNSIGNED NOT NULL,
-	from_estado VARCHAR(50) NULL,
-	to_estado VARCHAR(50) NOT NULL,
-	changed_by BIGINT UNSIGNED NULL,
-	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT fk_hist_pedido FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE,
-	CONSTRAINT fk_hist_changed_by FOREIGN KEY (changed_by) REFERENCES usuarios(id) ON DELETE SET NULL
+  id VARCHAR(36) NOT NULL,
+  pedido_id VARCHAR(36) NOT NULL,
+  estado_anterior VARCHAR(255) NOT NULL,
+  estado_nuevo VARCHAR(255) NOT NULL,
+  nota TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX IDX_historial_pedido (pedido_id),
+  CONSTRAINT FK_historial_pedido FOREIGN KEY (pedido_id) REFERENCES pedido(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Notificaciones / eventos persistentes (simple)
-CREATE TABLE IF NOT EXISTS notificaciones (
-	id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	restaurante_id BIGINT UNSIGNED NOT NULL,
-	tipo VARCHAR(100) NOT NULL,
-	payload JSON NULL,
-	sent BOOLEAN NOT NULL DEFAULT FALSE,
-	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT fk_notif_rest FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS notificacion (
+  id VARCHAR(36) NOT NULL,
+  tipo VARCHAR(255) NOT NULL,
+  mensaje TEXT NOT NULL,
+  usuario_id VARCHAR(36) NULL,
+  leido TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX IDX_notificacion_usuario (usuario_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Refresh tokens (rotating tokens pattern)
+CREATE TABLE IF NOT EXISTS evento (
+  id VARCHAR(36) NOT NULL,
+  tipo VARCHAR(255) NOT NULL,
+  metadata TEXT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tiempo (
+  id VARCHAR(36) NOT NULL,
+  producto_id VARCHAR(255) NOT NULL,
+  tiempo_base_minutos INT NOT NULL,
+  tiempo_estimado_actual_minutos INT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  restaurante_id VARCHAR(255) NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS refresh_tokens (
-	id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	usuario_id BIGINT UNSIGNED NOT NULL,
-	token_hash VARCHAR(255) NOT NULL,
-	revoked BOOLEAN NOT NULL DEFAULT FALSE,
-	replaced_by_token_id BIGINT UNSIGNED NULL,
-	expires_at TIMESTAMP NULL,
-	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT fk_refresh_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-	CONSTRAINT fk_refresh_replaced_by FOREIGN KEY (replaced_by_token_id) REFERENCES refresh_tokens(id) ON DELETE SET NULL
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  usuario_id VARCHAR(36) NOT NULL,
+  token_hash VARCHAR(255) NOT NULL,
+  revoked BOOLEAN NOT NULL DEFAULT FALSE,
+  replaced_by_token_id BIGINT UNSIGNED NULL,
+  expires_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY idx_refresh_hash (token_hash),
+  INDEX idx_refresh_usuario (usuario_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE INDEX idx_refresh_usuario ON refresh_tokens(usuario_id);
-CREATE UNIQUE INDEX idx_refresh_hash ON refresh_tokens(token_hash);
 
--- Outbox table for reliable event publishing
 CREATE TABLE IF NOT EXISTS outbox (
-	id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	aggregate_type VARCHAR(100) NOT NULL,
-	aggregate_id VARCHAR(100) NULL,
-	event_type VARCHAR(150) NOT NULL,
-	payload JSON NULL,
-	processed BOOLEAN NOT NULL DEFAULT FALSE,
-	processed_at TIMESTAMP NULL,
-	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	UNIQUE KEY ux_outbox_aggregate (aggregate_type, aggregate_id, event_type)
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  aggregate_type VARCHAR(100) NOT NULL,
+  aggregate_id VARCHAR(100) NULL,
+  event_type VARCHAR(150) NOT NULL,
+  payload JSON NULL,
+  processed BOOLEAN NOT NULL DEFAULT FALSE,
+  attempts INT NOT NULL DEFAULT 0,
+  last_error TEXT NULL,
+  next_retry_at DATETIME NULL,
+  dlq BOOLEAN NOT NULL DEFAULT FALSE,
+  dlq_reason TEXT NULL,
+  processed_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_outbox_pending (processed, dlq, next_retry_at, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-SET FOREIGN_KEY_CHECKS=1;
-
--- End of core schema DDL
+SET FOREIGN_KEY_CHECKS = 1;

@@ -10,16 +10,16 @@ export enum PedidoEstado {
   CANCELADO = 'cancelado',
 }
 
-@Entity({ name: 'pedidos' })
+@Entity({ name: 'pedido' })
 export class Pedido {
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-  @Column({ name: 'mesa_id', type: 'bigint', unsigned: true, nullable: true })
-  mesa_id?: number | null;
+  @Column({ name: 'mesa_id', type: 'varchar', length: 255 })
+  mesa_id: string;
 
-  @Column({ name: 'restaurante_id', type: 'bigint', unsigned: true })
-  restaurante_id: number;
+  @Column({ name: 'restaurante_id', type: 'varchar', length: 255, nullable: true })
+  restaurante_id?: string | null;
 
   @Column({ type: 'enum', enum: PedidoEstado, default: PedidoEstado.PENDIENTE })
   estado: PedidoEstado;
@@ -27,9 +27,9 @@ export class Pedido {
   @OneToMany(() => ItemPedido, (item) => item.pedido, { cascade: true })
   items: ItemPedido[];
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: 'datetime', precision: 6 })
   created_at: Date;
 
-  @UpdateDateColumn({ type: 'timestamp' })
+  @UpdateDateColumn({ type: 'datetime', precision: 6 })
   updated_at: Date;
 }
