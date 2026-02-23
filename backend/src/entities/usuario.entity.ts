@@ -1,35 +1,28 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
-export enum UserRole {
-  CLIENTE = 'cliente',
-  COCINA = 'cocina',
-  HOST = 'host',
-  ADMIN = 'admin',
-}
-
-@Entity()
+@Entity({ name: 'usuario' })
 export class Usuario {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
+  id: number;
 
-  @Column({ unique: true })
+  @Column({ unique: true, length: 200 })
   email: string;
 
-  @Column()
-  nombre: string;
+  @Column({ nullable: true, length: 200 })
+  nombre?: string;
 
-  @Column()
+  @Column({ length: 255 })
   password_hash: string;
 
-  @Column({ type: 'enum', enum: UserRole, default: UserRole.CLIENTE })
-  role: UserRole;
+  @Column({ name: 'role', type: 'enum', enum: ['cliente', 'cocina', 'host', 'admin'], default: 'cliente' })
+  role: string;
 
-  @Column({ nullable: true })
-  restaurante_id: string;
+  @Column({ name: 'restaurante_id', type: 'varchar', length: 255, nullable: true })
+  restaurante_id: string | number;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamp' })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamp' })
   updated_at: Date;
 }

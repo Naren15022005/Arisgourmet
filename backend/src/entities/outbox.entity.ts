@@ -20,6 +20,15 @@ export class Outbox {
   @Column({ default: false })
   processed: boolean;
 
+  @Column({ type: 'int', default: 0 })
+  attempts: number;
+
+  @Column({ name: 'last_error', type: 'text', nullable: true })
+  last_error?: string | null;
+
+  @Column({ name: 'next_retry_at', type: 'datetime', nullable: true })
+  next_retry_at?: Date | null;
+
   @Column({ name: 'processed_at', type: 'datetime', nullable: true })
   processed_at?: Date | null;
 

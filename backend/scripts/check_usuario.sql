@@ -1,0 +1,14 @@
+SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, COLUMN_KEY, EXTRA
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('usuario','usuarios') AND COLUMN_NAME='id';
+
+SELECT TABLE_NAME, COUNT(*) AS total_rows, SUM(id='') AS empty_id_count
+FROM (
+  SELECT 'usuario' AS TABLE_NAME, id FROM usuario
+  UNION ALL
+  SELECT 'usuarios' AS TABLE_NAME, id FROM usuarios
+) t
+GROUP BY TABLE_NAME;
+
+SELECT * FROM usuario WHERE id = '' LIMIT 5;
+SELECT * FROM usuarios WHERE id = '' LIMIT 5;

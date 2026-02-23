@@ -7,10 +7,12 @@ import { resolve } from 'path';
 // Load environment variables for tests (must happen before AppModule is imported)
 dotenv.config({ path: resolve(__dirname, '../../.env') });
 // Ensure DB credentials used in CI are set for tests
-process.env.DB_HOST = 'localhost';
-process.env.DB_PORT = '3306';
-process.env.DB_USER = 'aris_user';
-process.env.DB_PASSWORD = 's3cr3t';
+process.env.DB_HOST = process.env.DB_HOST || 'localhost';
+process.env.DB_PORT = process.env.DB_PORT || '3306';
+if (!process.env.DB_USER || ['naren', 'aris_user'].includes(process.env.DB_USER)) {
+  process.env.DB_USER = process.env.DB_USER_OVERRIDE || 'copilot';
+  process.env.DB_PASSWORD = process.env.DB_PASSWORD_OVERRIDE || 'StrongTempPass123!';
+}
 // import AppModule dynamically inside beforeAll so env is loaded first
 
 describe('Mesas API (integration)', () => {

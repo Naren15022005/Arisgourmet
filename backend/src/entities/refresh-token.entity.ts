@@ -4,7 +4,7 @@ import { Usuario } from './usuario.entity';
 @Entity({ name: 'refresh_tokens' })
 export class RefreshToken {
   @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
-  id: string;
+  id: number;
 
   @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'usuario_id' })
@@ -17,7 +17,7 @@ export class RefreshToken {
   revoked: boolean;
 
   @Column({ name: 'replaced_by_token_id', type: 'bigint', nullable: true })
-  replaced_by_token_id?: string | null;
+  replaced_by_token_id?: number | null;
 
   @Column({ name: 'expires_at', type: 'datetime', nullable: true })
   expires_at?: Date | null;

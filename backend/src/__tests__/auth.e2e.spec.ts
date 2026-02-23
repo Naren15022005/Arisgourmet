@@ -7,13 +7,25 @@ import * as bcrypt from 'bcryptjs';
 import { DataSource } from 'typeorm';
 
 dotenv.config({ path: resolve(__dirname, '../../.env') });
-process.env.DB_HOST = 'localhost';
-process.env.DB_PORT = '3306';
-process.env.DB_USER = 'aris_user';
-process.env.DB_PASSWORD = 's3cr3t';
+process.env.DB_HOST = process.env.DB_HOST || 'localhost';
+process.env.DB_PORT = process.env.DB_PORT || '3306';
+// Prefer provided env, but if CI/local env has other test creds override to local dev creds
+if (!process.env.DB_USER || ['naren', 'aris_user'].includes(process.env.DB_USER)) {
+  // Use the temporary user created for local operations (copilot) if present
+  process.env.DB_USER = process.env.DB_USER_OVERRIDE || 'copilot';
+  process.env.DB_PASSWORD = process.env.DB_PASSWORD_OVERRIDE || 'StrongTempPass123!';
+}
 
 describe('Auth API (integration)', () => {
   let app: INestApplication;
+
+  async function chooseTable(ds: DataSource, singular: string, plural: string) {
+    const r = await ds.query("SELECT COUNT(*) as c FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?", [plural]);
+    if (r && r[0] && r[0].c > 0) return plural;
+    const s = await ds.query("SELECT COUNT(*) as c FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?", [singular]);
+    if (s && s[0] && s[0].c > 0) return singular;
+    throw new Error(`Neither ${singular} nor ${plural} exists`);
+  }
 
   beforeAll(async () => {
     const { AppModule } = await import('../app.module');
@@ -38,16 +50,36 @@ describe('Auth API (integration)', () => {
     const restauranteId = rows[0].id;
     const passHash = await bcrypt.hash(password, 10);
     // ensure a 'cliente' role exists and use its id
-    const roleRows = await ds.query('SELECT id FROM roles WHERE nombre = ? LIMIT 1', ['cliente']);
+    const roleTable = await chooseTable(ds, 'role', 'roles');
+    const roleRows = await ds.query(`SELECT id FROM ${roleTable} WHERE nombre = ? LIMIT 1`, ['cliente']);
     let roleId: number;
     if (roleRows && roleRows.length > 0) {
       roleId = roleRows[0].id;
     } else {
-      await ds.query('INSERT INTO roles (nombre) VALUES (?)', ['cliente']);
-      const r = await ds.query('SELECT id FROM roles WHERE nombre = ? ORDER BY id DESC LIMIT 1', ['cliente']);
+      await ds.query(`INSERT INTO ${roleTable} (nombre) VALUES (?)`, ['cliente']);
+      const r = await ds.query(`SELECT id FROM ${roleTable} WHERE nombre = ? ORDER BY id DESC LIMIT 1`, ['cliente']);
       roleId = r[0].id;
     }
-    await ds.query('INSERT INTO usuarios (restaurante_id, email, nombre, password_hash, role_id) VALUES (?, ?, ?, ?, ?)', [restauranteId, email, 'Tester', passHash, roleId]);
+    const usuarioTable = await chooseTable(ds, 'usuario', 'usuarios');
+    const colCheck = await ds.query("SELECT COUNT(*) as c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME='role_id'", [usuarioTable]);
+    const idCol = await ds.query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME='id'", [usuarioTable]);
+    const needsId = idCol && idCol[0] && typeof idCol[0].COLUMN_TYPE === 'string' && idCol[0].COLUMN_TYPE.startsWith('varchar');
+    const newId = needsId ? require('crypto').randomUUID() : undefined;
+
+    if (colCheck && colCheck[0] && colCheck[0].c > 0) {
+      if (needsId) {
+        await ds.query(`INSERT INTO ${usuarioTable} (id, restaurante_id, email, nombre, password_hash, role_id) VALUES (?, ?, ?, ?, ?, ?)`, [newId, restauranteId, email, 'Tester', passHash, roleId]);
+      } else {
+        await ds.query(`INSERT INTO ${usuarioTable} (restaurante_id, email, nombre, password_hash, role_id) VALUES (?, ?, ?, ?, ?)`, [restauranteId, email, 'Tester', passHash, roleId]);
+      }
+    } else {
+      // fall back to storing role as string if table uses enum `role` column
+      if (needsId) {
+        await ds.query(`INSERT INTO ${usuarioTable} (id, restaurante_id, email, nombre, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)`, [newId, restauranteId, email, 'Tester', passHash, 'cliente']);
+      } else {
+        await ds.query(`INSERT INTO ${usuarioTable} (restaurante_id, email, nombre, password_hash, role) VALUES (?, ?, ?, ?, ?)`, [restauranteId, email, 'Tester', passHash, 'cliente']);
+      }
+    }
 
     // login
     const loginRes = await request(app.getHttpServer()).post('/auth/login').send({ email, password });

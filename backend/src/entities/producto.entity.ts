@@ -1,31 +1,31 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity()
+@Entity({ name: 'producto' })
 export class Producto {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
+  id: number;
 
-  @Column()
+  @Column({ length: 255 })
   nombre: string;
 
   @Column('text', { nullable: true })
-  descripcion: string;
+  descripcion?: string;
 
-  @Column('decimal', { precision: 10, scale: 2 })
-  precio: number;
+  @Column({ name: 'precio', type: 'decimal', precision: 10, scale: 2, transformer: { from: (v: any) => (v === null ? null : Number(v)), to: (v: any) => v } })
+  precio: number; // decimal in DB
 
-  @Column({ default: true })
+  @Column({ type: 'tinyint', width: 1, default: 1 })
   disponible: boolean;
 
   @Column({ type: 'int', default: 0 })
   tiempo_base_minutos: number;
 
-  @Column({ nullable: true })
-  restaurante_id: string;
+  @Column({ name: 'restaurante_id', type: 'varchar', length: 255, nullable: true })
+  restaurante_id?: string | number;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamp' })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamp' })
   updated_at: Date;
 }
