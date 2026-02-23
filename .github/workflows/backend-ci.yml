@@ -36,12 +36,17 @@ jobs:
 
       - name: Wait for MySQL
         run: |
+          # ensure mysql client is available and wait for service to be healthy
+          if ! command -v mysqladmin >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y default-mysql-client
+          fi
           for i in {1..30}; do
             mysqladmin ping -h mysql -uroot -prootpassword && break || sleep 2
           done
 
       - name: Create DB and CI user
         run: |
+          # use mysql client to create database and CI user; this may fail if MySQL not reachable
           mysql -h mysql -uroot -prootpassword -e "CREATE DATABASE IF NOT EXISTS arisgourmet; CREATE USER IF NOT EXISTS 'ci'@'%' IDENTIFIED BY 'ci_pass'; GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ci'@'%'; FLUSH PRIVILEGES;"
 
       - name: Install backend deps
