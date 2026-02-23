@@ -3,8 +3,8 @@ import { Permiso } from './permiso.entity';
 
 @Entity({ name: 'role' })
 export class Role {
-  @PrimaryGeneratedColumn({ type: 'smallint', unsigned: true })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ unique: true })
   nombre: string;

@@ -3,7 +3,6 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 export enum MesaEstado {
   LIBRE = 'libre',
   OCUPADA = 'ocupada',
-  RESERVADA = 'reservada',
   ACTIVA = 'activa',
   INACTIVA = 'inactiva',
   LIBERADA = 'liberada',
@@ -11,11 +10,11 @@ export enum MesaEstado {
 
 @Entity({ name: 'mesa' })
 export class Mesa {
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ name: 'restaurante_id', type: 'varchar', length: 255, nullable: true })
-  restaurante_id: string | number;
+  restaurante_id?: string | null;
 
   @Column({ name: 'codigo_qr', unique: true })
   codigo: string;
@@ -26,12 +25,18 @@ export class Mesa {
   @Column({ type: 'enum', enum: MesaEstado, default: MesaEstado.LIBRE })
   estado: MesaEstado;
 
-  @Column({ type: 'json', nullable: true, select: false })
-  metadata?: any;
+  @Column({ name: 'ultima_actividad_at', type: 'datetime', nullable: true })
+  ultima_actividad_at?: Date | null;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @Column({ name: 'ocupado', type: 'tinyint', default: 0 })
+  ocupado: number;
+
+  @Column({ name: 'ocupado_desde', type: 'timestamp', nullable: true })
+  ocupado_desde?: Date | null;
+
+  @CreateDateColumn({ type: 'datetime', precision: 6 })
   created_at: Date;
 
-  @UpdateDateColumn({ type: 'timestamp' })
+  @UpdateDateColumn({ type: 'datetime', precision: 6 })
   updated_at: Date;
 }

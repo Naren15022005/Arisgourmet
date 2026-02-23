@@ -2,8 +2,8 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 
 @Entity({ name: 'usuario' })
 export class Usuario {
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ unique: true, length: 200 })
   email: string;
@@ -18,11 +18,11 @@ export class Usuario {
   role: string;
 
   @Column({ name: 'restaurante_id', type: 'varchar', length: 255, nullable: true })
-  restaurante_id: string | number;
+  restaurante_id?: string | null;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: 'datetime', precision: 6 })
   created_at: Date;
 
-  @UpdateDateColumn({ type: 'timestamp' })
+  @UpdateDateColumn({ type: 'datetime', precision: 6 })
   updated_at: Date;
 }
