@@ -96,11 +96,24 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Build backend
+        working-directory: backend
+        run: npm run build --if-present
+
       - name: Run migrations
         working-directory: backend
         env:
           DATABASE_URL: mysql://ag_user:ag_password@127.0.0.1:3306/arisgourmet
-        run: npm run migrate:run --if-present || true
+        run: |
+          npm run migrate:run --if-present || true
+
+      - name: Debug: list installed packages
+        working-directory: backend
+        run: |
+          echo "-- node modules --"
+          ls -la node_modules || true
+          echo "-- check @nestjs/testing presence --"
+          npm ls @nestjs/testing || true
 
       - name: Run tests
         working-directory: backend
