@@ -1,10 +1,9 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class InitialSeed1676980000000 implements MigrationInterface {
-  name = 'InitialSeed1676980000000';
+export class InitialSeed1676991000000 implements MigrationInterface {
+  name = 'InitialSeed1676991000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Deterministic minimal seed for canonical singular schema.
     const restId = '00000000-0000-0000-0000-000000000001';
     await queryRunner.query(
       `INSERT INTO restaurante (id, nombre)
@@ -19,6 +18,7 @@ export class InitialSeed1676980000000 implements MigrationInterface {
        WHERE NOT EXISTS (SELECT 1 FROM mesa WHERE id = '00000000-0000-0000-0000-000000000011')`,
       [restId],
     );
+
     await queryRunner.query(
       `INSERT INTO mesa (id, restaurante_id, codigo_qr, estado)
        SELECT '00000000-0000-0000-0000-000000000012', ?, 'MESA-2', 'libre'
@@ -35,7 +35,7 @@ export class InitialSeed1676980000000 implements MigrationInterface {
     await queryRunner.query(
       `INSERT INTO producto (id, restaurante_id, nombre, descripcion, precio, disponible)
        SELECT '00000000-0000-0000-0000-000000000022', ?, 'Ensalada', 'Ensalada mixta', 4.50, 1
-       WHERE NOT EXISTS (SELECT 1 FROM producto WHERE id = '00000000-0000-0000-0000-000000000022')`,
+       WHERE NOT EXISTS (SELECT 1 FROM producto WHERE id = '00000000-0000-0000-000000000022')`,
       [restId],
     );
   }
