@@ -45,11 +45,16 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Create application DB user
+        env:
+          MYSQL_ROOT_PW: ${{ secrets.MYSQL_ROOT_PASSWORD || 'rootpassword' }}
         run: |
           set -euo pipefail
-          mysql -h 127.0.0.1 -uroot -prootpassword -e "
+          for i in $(seq 1 30); do
+            mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PW" --silent && break || sleep 1
+          done
+          mysql -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PW" -e "
             CREATE USER IF NOT EXISTS 'ag_user'@'%' IDENTIFIED BY 'ag_password';
-            GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ag_user'@'%';
+            GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON arisgourmet.* TO 'ag_user'@'%';
             FLUSH PRIVILEGES;
           "
 
