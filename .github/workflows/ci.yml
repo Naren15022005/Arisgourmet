@@ -57,7 +57,7 @@ jobs:
           else
             mysql_cmd=(mysql -h 127.0.0.1 -uroot)
           fi
-          "${mysql_cmd[@]}" -e "CREATE USER IF NOT EXISTS 'ag_user'@'%' IDENTIFIED BY 'ag_password'; GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON arisgourmet.* TO 'ag_user'@'%'; FLUSH PRIVILEGES;"
+          "${mysql_cmd[@]}" -e "CREATE USER IF NOT EXISTS 'ag_user'@'%' IDENTIFIED BY 'ag_password'; GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX,REFERENCES ON arisgourmet.* TO 'ag_user'@'%'; FLUSH PRIVILEGES;"
 
       - name: Install dependencies
         run: npm ci
