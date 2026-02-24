@@ -57,8 +57,7 @@ export class AddMultitenantAndSession1676990000000 implements MigrationInterface
         created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
-        INDEX IDX_mesa_sesion_mesa (mesa_id),
-        CONSTRAINT FK_mesa_sesion_mesa FOREIGN KEY (mesa_id) REFERENCES mesa(id) ON DELETE CASCADE
+        INDEX IDX_mesa_sesion_mesa (mesa_id)
       ) ENGINE=InnoDB;
     `);
 
