@@ -20,12 +20,10 @@ jobs:
         # containers are reachable by the service hostname (mysql) on the
         # default port inside the virtual network.
         options: >-
-          --health-cmd="mysqladmin ping -h localhost"
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -prootpassword --silent"
           --health-interval=10s --health-timeout=5s --health-retries=10
       redis:
         image: redis:6
-        ports:
-          - 6379:6379
 
     steps:
       - uses: actions/checkout@v4
@@ -131,7 +129,13 @@ jobs:
         run: |
           set -euo pipefail
           echo "Starting mysql-debug container"
-          docker run --name mysql-debug -e MYSQL_ROOT_PASSWORD=rootpassword -d mysql:8.0 || true
+          docker run --name mysql-debug \
+            -e MYSQL_ROOT_PASSWORD=rootpassword \
+            --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -prootpassword --silent" \
+            --health-interval=5s \
+            --health-timeout=2s \
+            --health-retries=12 \
+            -d mysql:8.0 || true
           sleep 2
           docker ps -a || true
           echo "Waiting for MySQL health (up to ~60s)"
