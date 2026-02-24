@@ -16,8 +16,9 @@ jobs:
         image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: rootpassword
-        ports:
-          - 3306:3306
+        # Do not map the container port to the runner host; Actions service
+        # containers are reachable by the service hostname (mysql) on the
+        # default port inside the virtual network.
         options: >-
           --health-cmd="mysqladmin ping -h localhost"
           --health-interval=10s --health-timeout=5s --health-retries=10
@@ -36,18 +37,40 @@ jobs:
 
       - name: Wait for MySQL
         run: |
-          # ensure mysql client is available and wait for service to be healthy
+          set -euo pipefail
+          echo "Ensure MySQL client present"
           if ! command -v mysqladmin >/dev/null 2>&1; then
-            sudo apt-get update && sudo apt-get install -y default-mysql-client
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y default-mysql-client
           fi
-          for i in {1..30}; do
-            mysqladmin ping -h mysql -uroot -prootpassword && break || sleep 2
+          echo "Waiting for MySQL service (host: mysql) to accept connections"
+          count=0
+          until mysqladmin ping -h mysql -uroot -prootpassword --silent; do
+            count=$((count+1))
+            echo "MySQL not reachable yet (attempt: $count)"
+            if [ "$count" -ge 60 ]; then
+              echo "Timed out waiting for MySQL after $count attempts"
+              exit 1
+            fi
+            sleep 2
           done
+          echo "MySQL reachable"
 
       - name: Create DB and CI user
         run: |
-          # use mysql client to create database and CI user; this may fail if MySQL not reachable
-          mysql -h mysql -uroot -prootpassword -e "CREATE DATABASE IF NOT EXISTS arisgourmet; CREATE USER IF NOT EXISTS 'ci'@'%' IDENTIFIED BY 'ci_pass'; GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ci'@'%'; FLUSH PRIVILEGES;"
+          set -euo pipefail
+          echo "Creating database and CI user (with retries)"
+          tries=0
+          until mysql -h mysql -uroot -prootpassword -e "CREATE DATABASE IF NOT EXISTS arisgourmet; CREATE USER IF NOT EXISTS 'ci'@'%' IDENTIFIED BY 'ci_pass'; GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ci'@'%'; FLUSH PRIVILEGES;"; do
+            tries=$((tries+1))
+            echo "Create DB step failed (attempt: $tries)"
+            if [ "$tries" -ge 10 ]; then
+              echo "Giving up after $tries attempts"
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "DB and CI user created"
 
       - name: Install backend deps
         working-directory: backend
