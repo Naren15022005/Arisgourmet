@@ -9,106 +9,86 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+
     services:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: rootpassword
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD || 'rootpassword' }}
           MYSQL_DATABASE: arisgourmet
         ports:
           - 3306:3306
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -prootpassword --silent"
-          --health-interval=10s --health-timeout=5s --health-retries=10
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
       redis:
         image: redis:7
         ports:
           - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
 
-      - name: Wait for MySQL
+      - name: Create application DB user
         run: |
           set -euo pipefail
-          if ! command -v mysqladmin >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y default-mysql-client
-          fi
-          count=0
-          until mysqladmin ping -h 127.0.0.1 -uroot -prootpassword --silent; do
-            count=$((count+1))
-            echo "MySQL not reachable yet (attempt: $count)"
-            if [ "$count" -ge 180 ]; then
-              echo "Timed out waiting for MySQL"
-              echo "=== Debug: resolve host mysql ==="
-              getent hosts mysql || true
-              echo "=== Debug: docker ps -a ==="
-              docker ps -a || true
-              echo "=== Debug: docker networks ==="
-              docker network ls || true
-              echo "=== Debug: mysql container inspect/logs ==="
-              MYSQL_ID=$(docker ps -a --filter "name=mysql" --format "{{.ID}}" | head -n 1)
-              if [ -n "${MYSQL_ID:-}" ]; then
-                docker inspect "$MYSQL_ID" || true
-                docker logs "$MYSQL_ID" || true
-              else
-                echo "No docker container matched name=mysql"
-              fi
-              exit 1
-            fi
-            sleep 2
-          done
-
-      - name: Create DB and CI user
-        run: |
-          set -euo pipefail
-          mysql -h 127.0.0.1 -uroot -prootpassword -e "CREATE DATABASE IF NOT EXISTS arisgourmet; \
-            CREATE USER IF NOT EXISTS 'ci'@'%' IDENTIFIED BY 'ci_pass'; \
-            CREATE USER IF NOT EXISTS 'ag_user'@'%' IDENTIFIED BY 'ag_password'; \
-            GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ci'@'%'; \
-            GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ag_user'@'%'; \
-            FLUSH PRIVILEGES;"
+          mysql -h 127.0.0.1 -uroot -prootpassword -e "
+            CREATE USER IF NOT EXISTS 'ag_user'@'%' IDENTIFIED BY 'ag_password';
+            GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ag_user'@'%';
+            FLUSH PRIVILEGES;
+          "
 
       - name: Install dependencies
-        run: |
-          cd backend
-          npm ci
-      - name: Build backend
-        run: |
-          cd backend
-          npm run build --if-present
+        run: npm ci
+        working-directory: backend
+
+      - name: Build
+        run: npm run build
+        working-directory: backend
+
       - name: Run migrations
         env:
           DB_HOST: 127.0.0.1
-          DB_PORT: 3306
+          DB_PORT: '3306'
           DB_NAME: arisgourmet
           DB_USER: ag_user
-          DB_PASS: ag_password
-          DATABASE_URL: mysql://ag_user:ag_password@127.0.0.1:3306/arisgourmet
-        run: |
-          cd backend
-          npm run migrate:run
-      - name: Debug: list installed packages
-        run: |
-          cd backend
-          echo "-- node modules --"
-          ls -la node_modules || true
-          echo "-- check @nestjs/testing presence --"
-          npm ls @nestjs/testing || true
+          DB_PASSWORD: ag_password
+        run: npm run migrate:run
+        working-directory: backend
+
       - name: Run tests
         env:
           DB_HOST: 127.0.0.1
-          DB_PORT: 3306
+          DB_PORT: '3306'
           DB_NAME: arisgourmet
           DB_USER: ag_user
-          DB_PASS: ag_password
-          DATABASE_URL: mysql://ag_user:ag_password@127.0.0.1:3306/arisgourmet
+          DB_PASSWORD: ag_password
           REDIS_URL: redis://127.0.0.1:6379
-        run: |
-          cd backend
-          npm test --silent
+        run: npm test
+        working-directory: backend
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-logs
+          path: |
+            backend/test-results/
+            backend/logs/
+            backend/jest*.json
+          if-no-files-found: ignore
