@@ -70,8 +70,7 @@ export class AddMultitenantAndSession1676990000000 implements MigrationInterface
         nota text DEFAULT NULL,
         created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
-        INDEX IDX_historial_pedido (pedido_id),
-        CONSTRAINT FK_historial_pedido FOREIGN KEY (pedido_id) REFERENCES pedido(id) ON DELETE CASCADE
+        INDEX IDX_historial_pedido (pedido_id)
       ) ENGINE=InnoDB;
     `);
 
