@@ -112,3 +112,54 @@ jobs:
         with:
           name: backend-test-logs
           path: ${{ steps.gather.outputs.artifacts }}
+
+  debug-containers:
+    name: Debug: service containers
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    needs: []
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pull MySQL image
+        run: |
+          echo "Pulling mysql:8.0 image"
+          docker pull mysql:8.0
+
+      - name: Run MySQL container (debug)
+        run: |
+          set -euo pipefail
+          echo "Starting mysql-debug container"
+          docker run --name mysql-debug -e MYSQL_ROOT_PASSWORD=rootpassword -d mysql:8.0 || true
+          sleep 2
+          docker ps -a || true
+          echo "Waiting for MySQL health (up to ~60s)"
+          for i in $(seq 1 30); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' mysql-debug 2>/dev/null || echo unknown)
+            echo "health=$status"
+            if [ "$status" = "healthy" ]; then
+              break
+            fi
+            contState=$(docker inspect --format='{{.State.Status}}' mysql-debug 2>/dev/null || echo exited)
+            if [ "$contState" = "exited" ]; then
+              echo "Container exited early; printing logs"
+              docker logs mysql-debug || true
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "Container logs (tail 200):"
+          docker logs --tail 200 mysql-debug || true
+
+      - name: Save MySQL debug logs
+        if: always()
+        run: |
+          docker logs mysql-debug > mysql-debug.log || true
+
+      - name: Upload MySQL debug logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mysql-debug-logs
+          path: mysql-debug.log
