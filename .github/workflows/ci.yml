@@ -15,11 +15,15 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: rootpassword
           MYSQL_DATABASE: arisgourmet
+        ports:
+          - 3306:3306
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -prootpassword --silent"
           --health-interval=10s --health-timeout=5s --health-retries=10
       redis:
         image: redis:7
+        ports:
+          - 6379:6379
 
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +40,7 @@ jobs:
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y default-mysql-client
           fi
           count=0
-          until mysqladmin ping -h mysql -uroot -prootpassword --silent; do
+          until mysqladmin ping -h 127.0.0.1 -uroot -prootpassword --silent; do
             count=$((count+1))
             echo "MySQL not reachable yet (attempt: $count)"
             if [ "$count" -ge 180 ]; then
@@ -63,7 +67,7 @@ jobs:
       - name: Create DB and CI user
         run: |
           set -euo pipefail
-          mysql -h mysql -uroot -prootpassword -e "CREATE DATABASE IF NOT EXISTS arisgourmet; CREATE USER IF NOT EXISTS 'ci'@'%' IDENTIFIED BY 'ci_pass'; GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ci'@'%'; FLUSH PRIVILEGES;"
+          mysql -h 127.0.0.1 -uroot -prootpassword -e "CREATE DATABASE IF NOT EXISTS arisgourmet; CREATE USER IF NOT EXISTS 'ci'@'%' IDENTIFIED BY 'ci_pass'; GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ci'@'%'; FLUSH PRIVILEGES;"
 
       - name: Install dependencies
         run: |
@@ -71,24 +75,24 @@ jobs:
           npm ci
       - name: Run migrations
         env:
-          DB_HOST: mysql
+          DB_HOST: 127.0.0.1
           DB_PORT: 3306
           DB_NAME: arisgourmet
           DB_USER: ci
           DB_PASS: ci_pass
-          DATABASE_URL: mysql://ci:ci_pass@mysql:3306/arisgourmet
+          DATABASE_URL: mysql://ci:ci_pass@127.0.0.1:3306/arisgourmet
         run: |
           cd backend
           npm run migrate:run
       - name: Run tests
         env:
-          DB_HOST: mysql
+          DB_HOST: 127.0.0.1
           DB_PORT: 3306
           DB_NAME: arisgourmet
           DB_USER: ci
           DB_PASS: ci_pass
-          DATABASE_URL: mysql://ci:ci_pass@mysql:3306/arisgourmet
-          REDIS_URL: redis://redis:6379
+          DATABASE_URL: mysql://ci:ci_pass@127.0.0.1:3306/arisgourmet
+          REDIS_URL: redis://127.0.0.1:6379
         run: |
           cd backend
           npm test --silent

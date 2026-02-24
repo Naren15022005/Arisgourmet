@@ -16,14 +16,17 @@ jobs:
         image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: rootpassword
-        # Do not map the container port to the runner host; Actions service
-        # containers are reachable by the service hostname (mysql) on the
-        # default port inside the virtual network.
+        ports:
+          - 3306:3306
+        # This job runs directly on the runner VM (not inside a job container),
+        # so the service must publish ports to be reachable from steps.
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -prootpassword --silent"
           --health-interval=10s --health-timeout=5s --health-retries=10
       redis:
         image: redis:6
+        ports:
+          - 6379:6379
 
     steps:
       - uses: actions/checkout@v4
@@ -41,9 +44,9 @@ jobs:
             sudo apt-get update
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y default-mysql-client
           fi
-          echo "Waiting for MySQL service (host: mysql) to accept connections"
+          echo "Waiting for MySQL service (host: 127.0.0.1) to accept connections"
           count=0
-          until mysqladmin ping -h mysql -uroot -prootpassword --silent; do
+          until mysqladmin ping -h 127.0.0.1 -uroot -prootpassword --silent; do
             count=$((count+1))
             echo "MySQL not reachable yet (attempt: $count)"
             if [ "$count" -ge 180 ]; then
@@ -73,7 +76,7 @@ jobs:
           set -euo pipefail
           echo "Creating database and CI user (with retries)"
           tries=0
-          until mysql -h mysql -uroot -prootpassword -e "CREATE DATABASE IF NOT EXISTS arisgourmet; CREATE USER IF NOT EXISTS 'ci'@'%' IDENTIFIED BY 'ci_pass'; GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ci'@'%'; FLUSH PRIVILEGES;"; do
+          until mysql -h 127.0.0.1 -uroot -prootpassword -e "CREATE DATABASE IF NOT EXISTS arisgourmet; CREATE USER IF NOT EXISTS 'ci'@'%' IDENTIFIED BY 'ci_pass'; GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ci'@'%'; FLUSH PRIVILEGES;"; do
             tries=$((tries+1))
             echo "Create DB step failed (attempt: $tries)"
             if [ "$tries" -ge 10 ]; then
@@ -91,14 +94,14 @@ jobs:
       - name: Run migrations
         working-directory: backend
         env:
-          DATABASE_URL: mysql://ci:ci_pass@mysql:3306/arisgourmet
+          DATABASE_URL: mysql://ci:ci_pass@127.0.0.1:3306/arisgourmet
         run: npm run migrate:run --if-present || true
 
       - name: Run tests
         working-directory: backend
         env:
-          DATABASE_URL: mysql://ci:ci_pass@mysql:3306/arisgourmet
-          REDIS_URL: redis://redis:6379
+          DATABASE_URL: mysql://ci:ci_pass@127.0.0.1:3306/arisgourmet
+          REDIS_URL: redis://127.0.0.1:6379
         run: npm test --silent
       - name: Gather test artifacts
         id: gather
