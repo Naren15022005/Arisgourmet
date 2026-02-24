@@ -1,0 +1,15 @@
+name: CI Smoke Test
+
+on:
+  push:
+    branches: [ feature/phase3-privileged-db ]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Echo
+        run: |
+          echo "smoke: workflow is running"
+          uname -a
