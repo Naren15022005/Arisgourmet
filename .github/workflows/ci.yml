@@ -39,8 +39,22 @@ jobs:
           until mysqladmin ping -h mysql -uroot -prootpassword --silent; do
             count=$((count+1))
             echo "MySQL not reachable yet (attempt: $count)"
-            if [ "$count" -ge 60 ]; then
+            if [ "$count" -ge 180 ]; then
               echo "Timed out waiting for MySQL"
+              echo "=== Debug: resolve host mysql ==="
+              getent hosts mysql || true
+              echo "=== Debug: docker ps -a ==="
+              docker ps -a || true
+              echo "=== Debug: docker networks ==="
+              docker network ls || true
+              echo "=== Debug: mysql container inspect/logs ==="
+              MYSQL_ID=$(docker ps -a --filter "name=mysql" --format "{{.ID}}" | head -n 1)
+              if [ -n "${MYSQL_ID:-}" ]; then
+                docker inspect "$MYSQL_ID" || true
+                docker logs "$MYSQL_ID" || true
+              else
+                echo "No docker container matched name=mysql"
+              fi
               exit 1
             fi
             sleep 2
