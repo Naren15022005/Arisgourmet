@@ -1,0 +1,1 @@
+{"version":3,"file":"1771803000000-create_compat_views.js","sourceRoot":"","sources":["../../src/migrations/1771803000000-create_compat_views.ts"],"names":[],"mappings":";;;AAEA,MAAa,8BAA8B;IAA3C;QACE,SAAI,GAAG,gCAAgC,CAAC;IAS1C,CAAC;IAPQ,KAAK,CAAC,EAAE,CAAC,YAAyB;QACvC,+EAA+E;IACjF,CAAC;IAEM,KAAK,CAAC,IAAI,CAAC,YAAyB;QACzC,uBAAuB;IACzB,CAAC;CACF;AAVD,wEAUC"}

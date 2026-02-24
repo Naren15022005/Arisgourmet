@@ -15,14 +15,14 @@ export class InitialSeed1676991000000 implements MigrationInterface {
     await queryRunner.query(
       `INSERT INTO mesa (id, restaurante_id, codigo_qr, estado)
        SELECT '00000000-0000-0000-0000-000000000011', ?, 'MESA-1', 'libre'
-       WHERE NOT EXISTS (SELECT 1 FROM mesa WHERE id = '00000000-0000-0000-0000-000000000011')`,
+       WHERE NOT EXISTS (SELECT 1 FROM mesa WHERE id = '00000000-0000-0000-0000-000000000011' OR codigo_qr = 'MESA-1')`,
       [restId],
     );
 
     await queryRunner.query(
       `INSERT INTO mesa (id, restaurante_id, codigo_qr, estado)
        SELECT '00000000-0000-0000-0000-000000000012', ?, 'MESA-2', 'libre'
-       WHERE NOT EXISTS (SELECT 1 FROM mesa WHERE id = '00000000-0000-0000-0000-000000000012')`,
+       WHERE NOT EXISTS (SELECT 1 FROM mesa WHERE id = '00000000-0000-0000-0000-000000000012' OR codigo_qr = 'MESA-2')`,
       [restId],
     );
 
