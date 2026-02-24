@@ -25,7 +25,32 @@ if (Get-Command choco -ErrorAction SilentlyContinue) {
 $msi = Join-Path $env:TEMP 'gh.msi'
 Write-Host "Downloading gh MSI to $msi"
 
-$downloadUrl = 'https://github.com/cli/cli/releases/latest/download/gh-windows-amd64.msi'
+Write-Host 'Resolving latest Windows amd64 MSI asset URL'
+$latestReleaseUrl = 'https://github.com/cli/cli/releases/latest'
+$downloadUrl = $null
+
+try {
+    $releasePage = Invoke-WebRequest -Uri $latestReleaseUrl -UseBasicParsing
+    $content = $releasePage.Content
+
+    $abs = [regex]::Match($content, '(?<url>https://github\.com/cli/cli/releases/download/v[^\"\s]+/gh_[^\"\s]+_windows_amd64\.msi)')
+    if ($abs.Success) {
+        $downloadUrl = $abs.Groups['url'].Value
+    } else {
+        $rel = [regex]::Match($content, 'href=\"(?<href>/cli/cli/releases/download/v[^\"]+/gh_[^\"]+_windows_amd64\.msi)\"')
+        if ($rel.Success) {
+            $downloadUrl = 'https://github.com' + $rel.Groups['href'].Value
+        }
+    }
+} catch {
+    # We'll fall back to other download methods below
+}
+
+if (-not $downloadUrl) {
+    throw "Could not resolve MSI download URL from $latestReleaseUrl"
+}
+
+Write-Host "Resolved MSI URL: $downloadUrl"
 
 try {
     Invoke-WebRequest -Uri $downloadUrl -OutFile $msi -UseBasicParsing
@@ -43,8 +68,26 @@ try {
     }
 }
 
+$msiItem = Get-Item -LiteralPath $msi
+if ($msiItem.Length -lt 1000000) {
+    $snippet = ''
+    try {
+        $snippet = (Get-Content -LiteralPath $msi -TotalCount 5 -ErrorAction SilentlyContinue) -join "`n"
+    } catch {
+        # ignore
+    }
+    throw "Downloaded MSI looks too small ($($msiItem.Length) bytes). Content preview:`n$snippet"
+}
+
 Write-Host 'Installing MSI (msiexec)'
 Start-Process -FilePath msiexec.exe -ArgumentList '/i', $msi, '/qn', '/norestart' -Wait
+
+# Refresh PATH in this session so `gh` can be found immediately
+$machinePath = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
+$userPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
+if ($machinePath -and $userPath) {
+    $env:Path = "$machinePath;$userPath"
+}
 
 Write-Host 'Verifying gh installation'
 gh --version
