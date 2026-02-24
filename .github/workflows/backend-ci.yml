@@ -76,7 +76,12 @@ jobs:
           set -euo pipefail
           echo "Creating database and CI user (with retries)"
           tries=0
-          until mysql -h 127.0.0.1 -uroot -prootpassword -e "CREATE DATABASE IF NOT EXISTS arisgourmet; CREATE USER IF NOT EXISTS 'ci'@'%' IDENTIFIED BY 'ci_pass'; GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ci'@'%'; FLUSH PRIVILEGES;"; do
+          until mysql -h 127.0.0.1 -uroot -prootpassword -e "CREATE DATABASE IF NOT EXISTS arisgourmet; \
+            CREATE USER IF NOT EXISTS 'ci'@'%' IDENTIFIED BY 'ci_pass'; \
+            CREATE USER IF NOT EXISTS 'ag_user'@'%' IDENTIFIED BY 'ag_password'; \
+            GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ci'@'%'; \
+            GRANT ALL PRIVILEGES ON arisgourmet.* TO 'ag_user'@'%'; \
+            FLUSH PRIVILEGES;"; do
             tries=$((tries+1))
             echo "Create DB step failed (attempt: $tries)"
             if [ "$tries" -ge 10 ]; then
@@ -94,13 +99,13 @@ jobs:
       - name: Run migrations
         working-directory: backend
         env:
-          DATABASE_URL: mysql://ci:ci_pass@127.0.0.1:3306/arisgourmet
+          DATABASE_URL: mysql://ag_user:ag_password@127.0.0.1:3306/arisgourmet
         run: npm run migrate:run --if-present || true
 
       - name: Run tests
         working-directory: backend
         env:
-          DATABASE_URL: mysql://ci:ci_pass@127.0.0.1:3306/arisgourmet
+          DATABASE_URL: mysql://ag_user:ag_password@127.0.0.1:3306/arisgourmet
           REDIS_URL: redis://127.0.0.1:6379
         run: npm test --silent
       - name: Gather test artifacts
