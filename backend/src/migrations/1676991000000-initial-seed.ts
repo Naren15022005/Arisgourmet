@@ -12,19 +12,31 @@ export class InitialSeed1676991000000 implements MigrationInterface {
       [restId, restId],
     );
 
-    await queryRunner.query(
-      `INSERT INTO mesa (id, restaurante_id, codigo_qr, estado)
-       SELECT '00000000-0000-0000-0000-000000000011', ?, 'MESA-1', 'libre'
-       WHERE NOT EXISTS (SELECT 1 FROM mesa WHERE id = '00000000-0000-0000-0000-000000000011' OR codigo_qr = 'MESA-1')`,
-      [restId],
-    );
+    // Only insert mesas if the `mesa` table exists in the current database
+    try {
+      const mesaTable = await queryRunner.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'mesa' LIMIT 1`
+      );
+      if (Array.isArray(mesaTable) && mesaTable.length > 0) {
+        await queryRunner.query(
+          `INSERT INTO mesa (id, restaurante_id, codigo_qr, estado)
+           SELECT '00000000-0000-0000-0000-000000000011', ?, 'MESA-1', 'libre'
+           WHERE NOT EXISTS (SELECT 1 FROM mesa WHERE id = '00000000-0000-0000-0000-000000000011' OR codigo_qr = 'MESA-1')`,
+          [restId],
+        );
 
-    await queryRunner.query(
-      `INSERT INTO mesa (id, restaurante_id, codigo_qr, estado)
-       SELECT '00000000-0000-0000-0000-000000000012', ?, 'MESA-2', 'libre'
-       WHERE NOT EXISTS (SELECT 1 FROM mesa WHERE id = '00000000-0000-0000-0000-000000000012' OR codigo_qr = 'MESA-2')`,
-      [restId],
-    );
+        await queryRunner.query(
+          `INSERT INTO mesa (id, restaurante_id, codigo_qr, estado)
+           SELECT '00000000-0000-0000-0000-000000000012', ?, 'MESA-2', 'libre'
+           WHERE NOT EXISTS (SELECT 1 FROM mesa WHERE id = '00000000-0000-0000-0000-000000000012' OR codigo_qr = 'MESA-2')`,
+          [restId],
+        );
+      }
+    } catch (err) {
+      // If information_schema is inaccessible or any error occurs, skip mesa inserts to avoid failing the whole migration
+      // eslint-disable-next-line no-console
+      console.warn('Skipping mesa seed: could not verify mesa table existence:', err && err.message ? err.message : err);
+    }
 
     await queryRunner.query(
       `INSERT INTO producto (id, restaurante_id, nombre, descripcion, precio, disponible)
