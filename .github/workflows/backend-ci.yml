@@ -48,18 +48,20 @@ jobs:
 
       - name: Create application DB user
         env:
-          MYSQL_ROOT_PW: ${{ secrets.MYSQL_ROOT_PASSWORD || 'rootpassword' }}
+          MYSQL_ROOT_PW: ${{ secrets.MYSQL_ROOT_PASSWORD }}
         run: |
           set -euo pipefail
           # wait for MySQL to become available
           for i in $(seq 1 30); do
-            mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PW" --silent && break || sleep 1
+            mysqladmin ping -h 127.0.0.1 -uroot --silent && break || sleep 1
           done
-          mysql -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PW" -e "
-            CREATE USER IF NOT EXISTS 'ag_user'@'%' IDENTIFIED BY 'ag_password';
-            GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON arisgourmet.* TO 'ag_user'@'%';
-            FLUSH PRIVILEGES;
-          "
+          # Try connecting as root with secret password if provided, else without password
+          if [ -n "$MYSQL_ROOT_PW" ]; then
+            mysql_cmd=(mysql -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PW")
+          else
+            mysql_cmd=(mysql -h 127.0.0.1 -uroot)
+          fi
+          "${mysql_cmd[@]}" -e "CREATE USER IF NOT EXISTS 'ag_user'@'%' IDENTIFIED BY 'ag_password'; GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX ON arisgourmet.* TO 'ag_user'@'%'; FLUSH PRIVILEGES;"
 
       - name: Install dependencies
         run: npm ci
