@@ -1,41 +1,50 @@
-<<<<<<< HEAD
-# Backend
+# ArisGourmet — estado actual y operación
 
-Plan: Node.js + NestJS (API REST + WebSockets) con MySQL como base de datos.
+## Objetivo del proyecto
+Unificar el modelo de datos con **base de datos como única fuente de verdad**, eliminar dependencias de compatibilidad innecesarias, dejar migraciones determinísticas, habilitar `outbox` y `refresh_tokens`, y preparar el camino para SaaS multi-tenant.
 
-Setup inicial (próximo):
-- Crear proyecto NestJS en `backend/`
-- Configurar ORM (TypeORM / Prisma) para MySQL
-- Añadir Dockerfile y configuración para conectar a `infra` MySQL
+## Estado actual
+- **Backend**: alto avance. Migraciones y entidades alineadas; tablas `outbox` y `refresh_tokens` disponibles; pruebas E2E y carga moderada verdes.
+- **Infra**: avanzado. DDL idempotente, scripts de operación y runbooks listos.
+- **Frontend**: pendiente de validación E2E completa contra API canónica.
 
-# ArisGourmet
+## Rama y PR
+- Rama principal de trabajo: `feature/phase3-privileged-db`.
+- PR en GitHub: creado como **Draft** para revisión de DBA/backend/ops.
 
-Backend (this folder)
+## Archivos clave
+- DDL idempotente: `infra/ddls/create_distributed_tables.sql`
+- Migraciones: `backend/src/migrations/`
+- Scripts operativos: `backend/scripts/`
+- Runbooks: `backend/runbooks/`
+- Checklist de release: `RELEASE_CHECKLIST.md`
 
-Breve: API y worker para ArisGourmet, implementado en TypeScript.
-
-Quick start:
-
-1. From repository root, install backend deps:
+## Comandos backend (quick start)
+Desde la raíz del repo:
 
 ```powershell
 cd backend
 npm install
-```
-
-2. Run migrations (requires local infra via docker-compose):
-
-```powershell
 npm run migrate:run
+npm run build
+npm test --silent
+npm run lint
 ```
 
-3. Start dev server:
+Para desarrollo local:
 
 ```powershell
+cd backend
 npm run start:dev
 ```
 
-See `infra/docker-compose.yml` for local MySQL/Redis setup and `infra/ddls/core_schema.sql` for canonical schema.
+## Recomendación operativa inmediata
+1. Validar en staging con datos representativos.
+2. Acordar ventana de mantenimiento (DBA/SRE) y backup completo.
+3. Aplicar DDL + migraciones en producción con usuario autorizado.
+4. Levantar worker/outbox y monitorear métricas (pendientes, retries, DLQ).
+5. Ejecutar smoke tests post-despliegue.
 
-» This README is maintained automatically during development tasks.
-
+## Notas
+- Los comandos de backend fueron verificados localmente durante esta fase (migraciones, build y tests).
+- El linter está activo para TypeScript en `backend/src/**/*.ts`.

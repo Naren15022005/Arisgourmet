@@ -1,0 +1,109 @@
+name: Backend CI
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+    branches-ignore:
+      - 'dependabot/**'
+  pull_request:
+    paths:
+      - 'backend/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD || 'rootpassword' }}
+          MYSQL_DATABASE: arisgourmet
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -prootpassword --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install MySQL client
+        run: sudo apt-get update && sudo apt-get install -y default-mysql-client
+
+      - name: Create application DB user
+        env:
+          MYSQL_ROOT_PW: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # wait for MySQL to become available
+          for i in $(seq 1 30); do
+            mysqladmin ping -h 127.0.0.1 -uroot --silent && break || sleep 1
+          done
+          # Try connecting as root with secret password if provided, else without password
+          if [ -n "$MYSQL_ROOT_PW" ]; then
+            mysql_cmd=(mysql -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PW")
+          else
+            mysql_cmd=(mysql -h 127.0.0.1 -uroot)
+          fi
+          "${mysql_cmd[@]}" -e "CREATE USER IF NOT EXISTS 'ag_user'@'%' IDENTIFIED BY 'ag_password'; GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX,REFERENCES ON arisgourmet.* TO 'ag_user'@'%'; FLUSH PRIVILEGES;"
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Build
+        run: npm run build
+        working-directory: backend
+
+      - name: Run migrations
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_NAME: arisgourmet
+          DB_USER: ag_user
+          DB_PASSWORD: ag_password
+        run: npm run migrate:run
+        working-directory: backend
+
+      - name: Run tests
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_NAME: arisgourmet
+          DB_USER: ag_user
+          DB_PASSWORD: ag_password
+          REDIS_URL: redis://127.0.0.1:6379
+        run: npm test
+        working-directory: backend
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-logs
+          path: |
+            backend/test-results/
+            backend/logs/
+            backend/jest*.json
+          if-no-files-found: ignore

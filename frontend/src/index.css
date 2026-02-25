@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: #FAF7F2;
+    --bg-card: #FFFFFF;
+    --text: #2C1810;
+    --text-muted: #7A5C52;
+    --border: #E8D5C4;
+    --primary: #C1633A;
+    --primary-hover: #A84E2B;
+    --accent: #E8956D;
+    --sidebar: #3D1F14;
+    --sidebar-text: #FAF7F2;
+    --sidebar-active: #C1633A;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5 {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  ::selection {
+    background-color: #F5B98A;
+    color: #2C1810;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-5 py-2.5 rounded-xl 
+           bg-peach-500 text-white font-medium text-sm
+           transition-all duration-150 
+           hover:bg-peach-600 active:scale-95
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-5 py-2.5 rounded-xl
+           bg-cream-200 text-coffee-600 font-medium text-sm border border-cream-300
+           transition-all duration-150
+           hover:bg-cream-300 active:scale-95
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg
+           text-coffee-400 font-medium text-sm
+           transition-all duration-150
+           hover:bg-cream-200 active:scale-95;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2.5 rounded-xl border border-cream-300 bg-white
+           text-coffee-700 text-sm placeholder:text-coffee-200
+           focus:outline-none focus:ring-2 focus:ring-peach-300 focus:border-peach-300
+           transition-shadow duration-150;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl border border-cream-200 shadow-card p-6;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-pendiente {
+    @apply badge bg-cream-300 text-coffee-600;
+  }
+
+  .badge-aceptado {
+    @apply badge bg-peach-100 text-peach-600;
+  }
+
+  .badge-preparando {
+    @apply badge bg-peach-200 text-peach-500;
+  }
+
+  .badge-listo {
+    @apply badge bg-coffee-100 text-coffee-500;
+  }
+
+  .badge-entregado {
+    @apply badge bg-cream-200 text-coffee-300;
+  }
+
+  .badge-cancelado {
+    @apply badge bg-cream-200 text-coffee-200;
+  }
+
+  /* Sidebar Link */
+  .sidebar-link {
+    @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium
+           text-cream-300 transition-colors duration-150
+           hover:bg-coffee-500 hover:text-cream-100;
+  }
+
+  .sidebar-link.active {
+    @apply bg-peach-500 text-white;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #FAF7F2;
+}
+::-webkit-scrollbar-thumb {
+  background: #E8C9B8;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C1825A;
+}
+
+/* Animated spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #E8D5C4;
+  border-top-color: #C1633A;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}

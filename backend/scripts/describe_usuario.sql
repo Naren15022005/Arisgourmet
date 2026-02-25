@@ -1,0 +1,8 @@
+SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_KEY, EXTRA
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='usuario'
+ORDER BY ORDINAL_POSITION;
+
+SELECT COUNT(*) AS total_rows, SUM(id='') AS empty_id_count FROM usuario;
+
+SELECT id, email FROM usuario WHERE id = '' LIMIT 5;

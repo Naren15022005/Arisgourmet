@@ -1,0 +1,5 @@
+SELECT COUNT(*) AS has_migrations_table
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='arisgourmet' AND TABLE_NAME='migrations';
+
+SELECT * FROM migrations ORDER BY id DESC LIMIT 10;
