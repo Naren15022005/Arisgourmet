@@ -17,6 +17,9 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { Outbox } from './entities/outbox.entity';
 import { MesasModule } from './mesas/mesas.module';
 import { AuthModule } from './auth/auth.module';
+import { PedidosModule } from './pedidos/pedidos.module';
+import { ProductosModule } from './productos/productos.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { TenantMiddleware } from './middleware/tenant.middleware';
 
 @Module({
@@ -52,6 +55,9 @@ import { TenantMiddleware } from './middleware/tenant.middleware';
     }),
     MesasModule,
     AuthModule,
+    PedidosModule,
+    ProductosModule,
+    NotificationsModule,
   ],
 })
 export class AppModule implements NestModule {

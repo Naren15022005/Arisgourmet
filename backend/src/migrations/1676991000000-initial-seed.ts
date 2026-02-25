@@ -38,18 +38,30 @@ export class InitialSeed1676991000000 implements MigrationInterface {
       console.warn('Skipping mesa seed: could not verify mesa table existence:', err && err.message ? err.message : err);
     }
 
-    await queryRunner.query(
-      `INSERT INTO producto (id, restaurante_id, nombre, descripcion, precio, disponible)
-       SELECT '00000000-0000-0000-0000-000000000021', ?, 'Café', 'Café negro', 1.50, 1
-       WHERE NOT EXISTS (SELECT 1 FROM producto WHERE id = '00000000-0000-0000-0000-000000000021')`,
-      [restId],
-    );
-    await queryRunner.query(
-      `INSERT INTO producto (id, restaurante_id, nombre, descripcion, precio, disponible)
-       SELECT '00000000-0000-0000-0000-000000000022', ?, 'Ensalada', 'Ensalada mixta', 4.50, 1
-       WHERE NOT EXISTS (SELECT 1 FROM producto WHERE id = '00000000-0000-0000-000000000022')`,
-      [restId],
-    );
+    // Only insert productos if the `producto` table exists
+    try {
+      const productoTable = await queryRunner.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'producto' LIMIT 1`
+      );
+      if (Array.isArray(productoTable) && productoTable.length > 0) {
+        await queryRunner.query(
+          `INSERT INTO producto (id, restaurante_id, nombre, descripcion, precio, disponible)
+           SELECT '00000000-0000-0000-0000-000000000021', ?, 'Café', 'Café negro', 1.50, 1
+           WHERE NOT EXISTS (SELECT 1 FROM producto WHERE id = '00000000-0000-0000-0000-000000000021')`,
+          [restId],
+        );
+        await queryRunner.query(
+          `INSERT INTO producto (id, restaurante_id, nombre, descripcion, precio, disponible)
+           SELECT '00000000-0000-0000-0000-000000000022', ?, 'Ensalada', 'Ensalada mixta', 4.50, 1
+           WHERE NOT EXISTS (SELECT 1 FROM producto WHERE id = '00000000-0000-0000-000000000022')`,
+          [restId],
+        );
+      }
+    } catch (err) {
+      // If information_schema is inaccessible or any error occurs, skip producto inserts
+      // eslint-disable-next-line no-console
+      console.warn('Skipping producto seed: could not verify producto table existence:', err && err.message ? err.message : err);
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
