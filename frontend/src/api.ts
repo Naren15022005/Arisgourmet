@@ -105,6 +105,8 @@ export const api = {
   // ── Mesas ──────────────────────────────────────────────────────────────────
   mesas: {
     list: () => request<Mesa[]>('/api/mesas'),
+    create: (codigo: string) =>
+      request<Mesa>('/api/mesas', { method: 'POST', body: JSON.stringify({ codigo }) }),
     activate: (codigo_qr: string) =>
       request<Mesa>('/api/mesas/activate', { method: 'POST', body: JSON.stringify({ codigo_qr }) }),
     release: (codigo_qr: string) =>
@@ -117,6 +119,7 @@ export const api = {
       const qs = mesa_id ? `?mesa_id=${mesa_id}` : ''
       return request<Pedido[]>(`/api/pedidos${qs}`)
     },
+    get: (id: string) => request<Pedido>(`/api/pedidos/${id}`),
     create: (payload: CreatePedidoPayload) =>
       request<Pedido>('/api/pedidos', { method: 'POST', body: JSON.stringify(payload) }),
     updateEstado: (id: string, estado: PedidoEstado) =>
@@ -131,6 +134,7 @@ export const api = {
   // ── Productos ──────────────────────────────────────────────────────────────
   productos: {
     list: () => request<Producto[]>('/api/productos/admin'),
+    listPublic: () => request<Producto[]>('/api/productos'),
     create: (payload: CreateProductoPayload) =>
       request<Producto>('/api/productos', { method: 'POST', body: JSON.stringify(payload) }),
     toggle: (id: string) => request<Producto>(`/api/productos/${id}/toggle`, { method: 'PATCH' }),

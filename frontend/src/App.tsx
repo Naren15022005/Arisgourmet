@@ -4,6 +4,10 @@ import Home from './pages/Home'
 import Login from './pages/Login'
 import RecepcionDashboard from './pages/dashboard/Recepcion'
 import CocinaDashboard from './pages/dashboard/Cocina'
+import PedidosDashboard from './pages/dashboard/Pedidos'
+import ProductosDashboard from './pages/dashboard/Productos'
+import MesasDashboard from './pages/dashboard/Mesas'
+import MesaCliente from './pages/MesaCliente'
 import type { ReactNode } from 'react'
 
 function PrivateRoute({ children }: { children: ReactNode }) {
@@ -29,8 +33,14 @@ function PublicRoute({ children }: { children: ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
+      {/* Public landing and auth */}
       <Route path="/" element={<PublicRoute><Home /></PublicRoute>} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+
+      {/* Customer QR digital menu & ordering (public) */}
+      <Route path="/mesa/:codigo" element={<MesaCliente />} />
+
+      {/* Dashboard protected routes */}
       <Route
         path="/dashboard/recepcion"
         element={<PrivateRoute><RecepcionDashboard /></PrivateRoute>}
@@ -39,6 +49,19 @@ function AppRoutes() {
         path="/dashboard/cocina"
         element={<PrivateRoute><CocinaDashboard /></PrivateRoute>}
       />
+      <Route
+        path="/dashboard/pedidos"
+        element={<PrivateRoute><PedidosDashboard /></PrivateRoute>}
+      />
+      <Route
+        path="/dashboard/productos"
+        element={<PrivateRoute><ProductosDashboard /></PrivateRoute>}
+      />
+      <Route
+        path="/dashboard/mesas"
+        element={<PrivateRoute><MesasDashboard /></PrivateRoute>}
+      />
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

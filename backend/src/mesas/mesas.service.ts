@@ -42,4 +42,13 @@ export class MesasService {
 
     return this.mesaRepo.save(mesa);
   }
+
+  async create(codigo: string, restauranteId?: string | number) {
+    const mesa = this.mesaRepo.create({
+      codigo,
+      restaurante_id: restauranteId ? String(restauranteId) : undefined,
+      estado: MesaEstado.LIBRE,
+    });
+    return this.mesaRepo.save(mesa);
+  }
 }

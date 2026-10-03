@@ -29,4 +29,12 @@ export class MesasController {
     const restauranteId = req.user?.restaurante_id || req.restauranteId;
     return this.mesasService.release(codigo_qr, restauranteId);
   }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('host','admin')
+  @Post()
+  async create(@Body('codigo') codigo: string, @Req() req: any) {
+    const restauranteId = req.user?.restaurante_id || req.restauranteId;
+    return this.mesasService.create(codigo, restauranteId);
+  }
 }
