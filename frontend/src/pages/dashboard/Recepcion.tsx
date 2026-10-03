@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import DashboardLayout from '../../components/DashboardLayout'
 import EstadoBadge from '../../components/EstadoBadge'
 import { api, type Mesa, type Pedido, type Producto, type PedidoEstado } from '../../api'
@@ -7,7 +7,7 @@ import { useSocket } from '../../hooks/useSocket'
 function timeAgo(iso: string) {
   const diff = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
   if (diff < 60) return `${diff}s`
-  if (diff < 3600) return `${Math.floor(diff / 60)} min`
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`
   return `${Math.floor(diff / 3600)}h ${Math.floor((diff % 3600) / 60)}m`
 }
 
@@ -19,40 +19,6 @@ function formatCurrency(val: number) {
   }).format(val)
 }
 
-// Chime sintetizado con Web Audio API (cero dependencias externas)
-function playChime() {
-  try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-    if (!AudioCtx) return
-    const ctx = new AudioCtx()
-    const now = ctx.currentTime
-
-    const osc1 = ctx.createOscillator()
-    const gain1 = ctx.createGain()
-    osc1.type = 'sine'
-    osc1.frequency.setValueAtTime(587.33, now) // D5
-    gain1.gain.setValueAtTime(0.15, now)
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.5)
-    osc1.connect(gain1)
-    gain1.connect(ctx.destination)
-    osc1.start(now)
-    osc1.stop(now + 0.5)
-
-    const osc2 = ctx.createOscillator()
-    const gain2 = ctx.createGain()
-    osc2.type = 'sine'
-    osc2.frequency.setValueAtTime(880, now + 0.15) // A5
-    gain2.gain.setValueAtTime(0.2, now + 0.15)
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.7)
-    osc2.connect(gain2)
-    gain2.connect(ctx.destination)
-    osc2.start(now + 0.15)
-    osc2.stop(now + 0.7)
-  } catch {
-    // Si el navegador bloquea audio sin interacción previa
-  }
-}
-
 export default function RecepcionDashboard() {
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [pedidos, setPedidos] = useState<Pedido[]>([])
@@ -61,21 +27,18 @@ export default function RecepcionDashboard() {
   const [filter, setFilter] = useState<'todas' | 'libre' | 'ocupada' | 'reservada'>('todas')
   const [search, setSearch] = useState('')
   const [actionId, setActionId] = useState<string | null>(null)
-  const [soundEnabled, setSoundEnabled] = useState(true)
-  const [clock, setClock] = useState(() => new Date().toLocaleTimeString())
+  const [clock, setClock] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
   const [selectedMesaCuenta, setSelectedMesaCuenta] = useState<Mesa | null>(null)
   const [mesaAsignar, setMesaAsignar] = useState<Mesa | null>(null)
-  const [feedTab, setFeedTab] = useState<'alertas' | 'en_cocina'>('alertas')
+  const [tabAlertas, setTabAlertas] = useState<'pendientes' | 'listos'>('listos')
 
-  // Reloj en vivo
   useEffect(() => {
     const timer = setInterval(() => {
-      setClock(new Date().toLocaleTimeString())
+      setClock(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
     }, 1000)
     return () => clearInterval(timer)
   }, [])
 
-  // Carga inicial de datos
   const fetchAll = useCallback(async () => {
     try {
       const [mesasData, pedidosData, prodList] = await Promise.all([
@@ -100,21 +63,12 @@ export default function RecepcionDashboard() {
     fetchAll()
   }, [fetchAll])
 
-  // Escucha en tiempo real vía WebSockets
-  const prevAlertCount = useRef(0)
   useSocket(
-    useCallback(
-      (channel: string) => {
-        fetchAll()
-        if (soundEnabled && (channel.includes('CREADO') || channel.includes('ESTADO_ACTUALIZADO'))) {
-          playChime()
-        }
-      },
-      [fetchAll, soundEnabled]
-    )
+    useCallback(() => {
+      fetchAll()
+    }, [fetchAll])
   )
 
-  // Mapas auxiliares para resolución rápida
   const mesasMap = useMemo(() => {
     const map: Record<string, Mesa> = {}
     for (const m of mesas) {
@@ -125,13 +79,10 @@ export default function RecepcionDashboard() {
   }, [mesas])
 
   const resolveMesaCodigo = useCallback(
-    (mesaIdOrCodigo: string) => {
-      return mesasMap[mesaIdOrCodigo]?.codigo ?? mesaIdOrCodigo
-    },
+    (mesaIdOrCodigo: string) => mesasMap[mesaIdOrCodigo]?.codigo ?? mesaIdOrCodigo,
     [mesasMap]
   )
 
-  // Pedidos activos por mesa (excluyendo cancelados y entregados)
   const pedidosPorMesa = useMemo(() => {
     const map: Record<string, Pedido[]> = {}
     for (const p of pedidos) {
@@ -143,14 +94,12 @@ export default function RecepcionDashboard() {
     return map
   }, [pedidos, resolveMesaCodigo])
 
-  // Cálculo de total acumulado por mesa
   const totalMesa = useCallback(
     (codigo: string) => {
       const peds = pedidosPorMesa[codigo] || []
       let total = 0
       for (const ped of peds) {
-        if (!ped.items) continue
-        for (const it of ped.items) {
+        for (const it of ped.items || []) {
           total += Number(it.precio_unitario || 0) * (it.cantidad || 1)
         }
       }
@@ -159,33 +108,22 @@ export default function RecepcionDashboard() {
     [pedidosPorMesa]
   )
 
-  // Pedidos que requieren atención inmediata del Maître / Camareros
-  const pedidosAlertas = useMemo(() => {
-    return pedidos.filter((p) => p.estado === 'listo' || p.estado === 'pendiente')
-  }, [pedidos])
+  const pedidosListos = useMemo(
+    () => pedidos.filter((p) => p.estado === 'listo'),
+    [pedidos]
+  )
 
-  // Pedidos actualmente en preparación en cocina
-  const pedidosEnCocina = useMemo(() => {
-    return pedidos.filter((p) => p.estado === 'aceptado' || p.estado === 'preparando')
-  }, [pedidos])
+  const pedidosPendientes = useMemo(
+    () => pedidos.filter((p) => p.estado === 'pendiente'),
+    [pedidos]
+  )
 
-  // Sonar aviso si entra nueva alerta
-  useEffect(() => {
-    if (soundEnabled && pedidosAlertas.length > prevAlertCount.current) {
-      playChime()
-    }
-    prevAlertCount.current = pedidosAlertas.length
-  }, [pedidosAlertas.length, soundEnabled])
-
-  // Acciones rápidas de mesas
   const handleActivateMesa = async (mesa: Mesa) => {
     setActionId(mesa.id)
     try {
       await api.mesas.activate(mesa.codigo)
       await fetchAll()
       setMesaAsignar(null)
-    } catch (err: any) {
-      alert('Error al asignar mesa: ' + (err?.message || 'Error'))
     } finally {
       setActionId(null)
     }
@@ -196,11 +134,7 @@ export default function RecepcionDashboard() {
     try {
       await api.mesas.release(mesa.codigo)
       await fetchAll()
-      if (selectedMesaCuenta?.id === mesa.id) {
-        setSelectedMesaCuenta(null)
-      }
-    } catch (err: any) {
-      alert('Error al liberar mesa: ' + (err?.message || 'Error'))
+      if (selectedMesaCuenta?.id === mesa.id) setSelectedMesaCuenta(null)
     } finally {
       setActionId(null)
     }
@@ -209,19 +143,15 @@ export default function RecepcionDashboard() {
   const handleCobrarYLiberar = async (mesa: Mesa) => {
     setActionId(mesa.id)
     try {
-      // 1. Marcar todos los pedidos activos de la mesa como entregados/cerrados
       const peds = pedidosPorMesa[mesa.codigo] || []
       for (const p of peds) {
         if (p.estado !== 'entregado' && p.estado !== 'cancelado') {
           await api.pedidos.updateEstado(p.id, 'entregado').catch(() => {})
         }
       }
-      // 2. Liberar la mesa
       await api.mesas.release(mesa.codigo)
       await fetchAll()
       setSelectedMesaCuenta(null)
-    } catch (err: any) {
-      alert('Error al procesar cobro: ' + (err?.message || 'Error'))
     } finally {
       setActionId(null)
     }
@@ -232,14 +162,11 @@ export default function RecepcionDashboard() {
     try {
       await api.pedidos.updateEstado(pedidoId, nuevoEstado)
       await fetchAll()
-    } catch (err: any) {
-      alert('Error al actualizar pedido: ' + (err?.message || 'Error'))
     } finally {
       setActionId(null)
     }
   }
 
-  // Filtrado de mesas en el salón
   const filteredMesas = useMemo(() => {
     return mesas.filter((m) => {
       const matchFilter = filter === 'todas' || m.estado === filter
@@ -250,13 +177,11 @@ export default function RecepcionDashboard() {
     })
   }, [mesas, filter, search])
 
-  // KPIs del turno
   const libres = mesas.filter((m) => m.estado === 'libre').length
   const ocupadas = mesas.filter((m) => m.estado === 'ocupada').length
   const reservadas = mesas.filter((m) => m.estado === 'reservada').length
-  const tasaOcupacion = mesas.length > 0 ? Math.round((ocupadas / mesas.length) * 100) : 0
 
-  const totalFacturadoTurno = useMemo(() => {
+  const totalTurno = useMemo(() => {
     let sum = 0
     for (const p of pedidos) {
       if (p.estado === 'cancelado') continue
@@ -268,125 +193,84 @@ export default function RecepcionDashboard() {
   }, [pedidos])
 
   return (
-    <DashboardLayout title="Estación de Recepción y Maître">
-      {/* Barra Superior de Control y Turno */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-cream-50 p-4 rounded-2xl border border-cream-200 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-coffee-700 text-cream-100 flex items-center justify-center font-bold text-lg shadow-sm">
-            🍽️
-          </div>
-          <div>
-            <h2 className="text-base font-bold text-coffee-800 flex items-center gap-2">
-              Salón Principal
-              <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                En vivo
-              </span>
-            </h2>
-            <p className="text-xs text-coffee-400">
-              Control de flujo de comensales, comanda digital y cuentas
-            </p>
-          </div>
+    <DashboardLayout title="Recepción">
+      {/* Encabezado minimalista */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b border-cream-200 gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-coffee-800 tracking-tight">
+            Control de Salón
+          </h1>
+          <p className="text-xs text-coffee-400 mt-0.5">
+            Gestión de comensales, comanda y facturación en tiempo real.
+          </p>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Reloj de turno */}
-          <div className="px-3 py-1.5 rounded-xl bg-white border border-cream-300 text-xs font-mono font-bold text-coffee-700 shadow-xs">
-            🕒 {clock}
+          <div className="text-xs font-mono text-coffee-500 bg-white px-3 py-1.5 rounded-lg border border-cream-200">
+            {clock}
           </div>
-
-          {/* Toggle de audio */}
-          <button
-            onClick={() => {
-              setSoundEnabled(!soundEnabled)
-              if (!soundEnabled) playChime()
-            }}
-            title={soundEnabled ? 'Silenciar avisos sonoros' : 'Activar avisos sonoros'}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${
-              soundEnabled
-                ? 'bg-peach-50 border-peach-300 text-peach-700 shadow-xs'
-                : 'bg-white border-cream-300 text-coffee-400'
-            }`}
-          >
-            {soundEnabled ? '🔔 Alertas ON' : '🔕 Mute'}
-          </button>
-
-          {/* Recarga manual */}
           <button
             onClick={() => fetchAll()}
             disabled={loading}
-            className="btn-secondary text-xs px-3 py-1.5"
-            title="Refrescar datos"
+            className="text-xs font-medium text-coffee-600 hover:text-coffee-800 bg-white hover:bg-cream-100 border border-cream-200 px-3 py-1.5 rounded-lg transition-colors"
           >
-            {loading ? '...' : '↻ Refrescar'}
+            {loading ? 'Actualizando...' : 'Actualizar'}
           </button>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-8">
-        <div className="card py-3 px-4 bg-white border-l-4 border-l-emerald-500">
-          <p className="text-xs text-coffee-400 font-semibold uppercase tracking-wider">
-            Mesas Libres
-          </p>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-black text-coffee-800">{libres}</span>
-            <span className="text-xs text-emerald-600 font-medium">de {mesas.length} totales</span>
+      {/* Métricas clave limpias */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="p-4 bg-white rounded-xl border border-cream-200">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-coffee-400 block mb-1">
+            Mesas disponibles
+          </span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-semibold text-coffee-800">{libres}</span>
+            <span className="text-xs text-coffee-400">de {mesas.length}</span>
           </div>
         </div>
 
-        <div className="card py-3 px-4 bg-white border-l-4 border-l-peach-500">
-          <p className="text-xs text-coffee-400 font-semibold uppercase tracking-wider">
-            En Servicio
-          </p>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-black text-peach-700">{ocupadas}</span>
-            <span className="text-xs text-peach-600 font-medium">{tasaOcupacion}% ocupación</span>
-          </div>
-        </div>
-
-        <div className="card py-3 px-4 bg-white border-l-4 border-l-amber-500">
-          <p className="text-xs text-coffee-400 font-semibold uppercase tracking-wider">
-            Platos Listos
-          </p>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-black text-amber-700">
-              {pedidos.filter((p) => p.estado === 'listo').length}
+        <div className="p-4 bg-white rounded-xl border border-cream-200">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-coffee-400 block mb-1">
+            Mesas en servicio
+          </span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-semibold text-coffee-800">{ocupadas}</span>
+            <span className="text-xs text-coffee-400">
+              {mesas.length > 0 ? Math.round((ocupadas / mesas.length) * 100) : 0}%
             </span>
-            <span className="text-xs text-amber-600 font-medium">por servir a mesa</span>
           </div>
         </div>
 
-        <div className="card py-3 px-4 bg-white border-l-4 border-l-coffee-500">
-          <p className="text-xs text-coffee-400 font-semibold uppercase tracking-wider">
-            En Cocina
-          </p>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-black text-coffee-700">{pedidosEnCocina.length}</span>
-            <span className="text-xs text-coffee-400 font-medium">comandas activas</span>
+        <div className="p-4 bg-white rounded-xl border border-cream-200">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-coffee-400 block mb-1">
+            Platos listos
+          </span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-semibold text-coffee-800">{pedidosListos.length}</span>
+            <span className="text-xs text-coffee-400">por entregar</span>
           </div>
         </div>
 
-        <div className="card py-3 px-4 bg-white border-l-4 border-l-coffee-700 col-span-2 md:col-span-4 lg:col-span-1">
-          <p className="text-xs text-coffee-400 font-semibold uppercase tracking-wider">
-            Consumo Turno
-          </p>
-          <div className="flex items-baseline justify-between mt-1">
-            <span className="text-xl font-black text-coffee-800 truncate">
-              {formatCurrency(totalFacturadoTurno)}
+        <div className="p-4 bg-white rounded-xl border border-cream-200">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-coffee-400 block mb-1">
+            Total en curso
+          </span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-semibold text-coffee-800 truncate">
+              {formatCurrency(totalTurno)}
             </span>
-            <span className="text-xs text-coffee-400 font-medium">acumulado</span>
           </div>
         </div>
       </div>
 
-      {/* Grid Principal: Salón (2/3) y Feed de Atención (1/3) */}
+      {/* Estructura principal: Salón y Panel de Pedidos */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Columna Izquierda: Plano de Mesas del Salón */}
+        {/* Mesas del Salón */}
         <div className="lg:col-span-2 space-y-4">
-          {/* Barra de Filtros y Búsqueda */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border border-cream-200">
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-2">
+            <div className="flex items-center gap-1 border border-cream-200 bg-white p-1 rounded-lg">
               {[
                 { key: 'todas', label: 'Todas', count: mesas.length },
                 { key: 'libre', label: 'Libres', count: libres },
@@ -396,49 +280,41 @@ export default function RecepcionDashboard() {
                 <button
                   key={key}
                   onClick={() => setFilter(key as any)}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
                     filter === key
-                      ? 'bg-coffee-700 text-cream-100 shadow-xs'
-                      : 'text-coffee-400 hover:text-coffee-700 hover:bg-cream-100'
+                      ? 'bg-coffee-700 text-white'
+                      : 'text-coffee-500 hover:text-coffee-800 hover:bg-cream-50'
                   }`}
                 >
-                  {label} ({count})
+                  {label} <span className="opacity-75">({count})</span>
                 </button>
               ))}
             </div>
 
-            <div className="relative w-full sm:w-48">
+            <div className="w-full sm:w-56">
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar mesa..."
-                className="w-full text-xs py-1.5 pl-7 pr-3 rounded-lg border border-cream-300 focus:outline-hidden focus:border-coffee-500 bg-cream-50"
+                placeholder="Filtrar por código..."
+                className="w-full text-xs px-3 py-1.5 rounded-lg border border-cream-300 bg-white focus:outline-hidden focus:border-coffee-500"
               />
-              <span className="absolute left-2.5 top-2 text-xs text-coffee-300">🔍</span>
             </div>
           </div>
 
-          {/* Grid de Mesas */}
           {loading ? (
-            <div className="flex justify-center py-24">
+            <div className="flex justify-center py-20">
               <span className="spinner" />
             </div>
           ) : filteredMesas.length === 0 ? (
-            <div className="card text-center py-16 border-dashed border-cream-300">
-              <span className="text-4xl mb-2 block">🪑</span>
-              <h3 className="font-semibold text-coffee-700 mb-1">
-                No se encontraron mesas para este filtro
-              </h3>
-              <p className="text-xs text-coffee-300">
-                Cambia el filtro o registra nuevas mesas en el panel de Mesas y QR.
-              </p>
+            <div className="p-12 text-center bg-white rounded-xl border border-cream-200">
+              <p className="text-xs text-coffee-400">No hay mesas que coincidan con la búsqueda.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {filteredMesas.map((mesa) => {
                 const peds = pedidosPorMesa[mesa.codigo] || []
-                const consumoActual = totalMesa(mesa.codigo)
+                const consumo = totalMesa(mesa.codigo)
                 const isOcupada = mesa.estado === 'ocupada'
                 const isLibre = mesa.estado === 'libre'
                 const isReservada = mesa.estado === 'reservada'
@@ -446,115 +322,67 @@ export default function RecepcionDashboard() {
                 return (
                   <div
                     key={mesa.id}
-                    className={`card relative p-4 transition-all duration-200 flex flex-col justify-between ${
-                      isOcupada
-                        ? 'border-peach-300 bg-gradient-to-br from-white via-peach-50/20 to-peach-50/50 shadow-md ring-1 ring-peach-200'
-                        : isLibre
-                        ? 'border-cream-300 bg-white hover:border-emerald-300 hover:shadow-md'
-                        : 'border-coffee-200 bg-coffee-50/40'
-                    }`}
+                    className="p-4 bg-white rounded-xl border border-cream-200 flex flex-col justify-between hover:border-cream-400 transition-colors"
                   >
-                    {/* Header de la tarjeta */}
                     <div>
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shadow-xs ${
-                              isOcupada
-                                ? 'bg-peach-600 text-white'
-                                : isLibre
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-coffee-600 text-white'
-                            }`}
-                          >
-                            {mesa.numero || mesa.codigo.replace(/\D/g, '') || '•'}
-                          </span>
-                          <div>
-                            <h3 className="font-bold text-coffee-800 text-sm">{mesa.codigo}</h3>
-                            <span className="text-[10px] text-coffee-300 uppercase tracking-wider font-semibold">
-                              {mesa.codigo.toLowerCase().includes('terraza')
-                                ? 'Terraza Exterior'
-                                : 'Salón Principal'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Badge de Estado con Pulso */}
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-semibold text-coffee-800">
+                          {mesa.codigo}
+                        </span>
                         <span
-                          className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider inline-flex items-center gap-1.5 ${
+                          className={`text-[10px] uppercase font-semibold px-2 py-0.5 rounded-md tracking-wider ${
                             isOcupada
-                              ? 'bg-peach-100 text-peach-700'
+                              ? 'bg-peach-100 text-peach-800'
                               : isLibre
-                              ? 'bg-emerald-100 text-emerald-800'
+                              ? 'bg-emerald-50 text-emerald-700'
                               : 'bg-coffee-100 text-coffee-700'
                           }`}
                         >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              isOcupada
-                                ? 'bg-peach-500 animate-ping'
-                                : isLibre
-                                ? 'bg-emerald-500'
-                                : 'bg-coffee-400'
-                            }`}
-                          />
                           {mesa.estado}
                         </span>
                       </div>
 
-                      {/* Información de consumo / tiempo */}
                       {isOcupada && (
-                        <div className="mt-3 p-2.5 rounded-xl bg-white border border-peach-200/80 space-y-1.5">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-coffee-400">Comandas activas:</span>
-                            <span className="font-bold text-coffee-700">
-                              {peds.length} {peds.length === 1 ? 'pedido' : 'pedidos'}
-                            </span>
+                        <div className="space-y-1.5 py-2 text-xs border-t border-cream-100 mb-2">
+                          <div className="flex justify-between text-coffee-500">
+                            <span>Comandas:</span>
+                            <span className="font-medium text-coffee-700">{peds.length}</span>
                           </div>
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-coffee-400">Consumo acumulado:</span>
-                            <span className="font-black text-peach-700 text-sm">
-                              {formatCurrency(consumoActual)}
+                          <div className="flex justify-between text-coffee-500">
+                            <span>Consumo:</span>
+                            <span className="font-semibold text-coffee-800">
+                              {formatCurrency(consumo)}
                             </span>
                           </div>
                           {mesa.updated_at && (
-                            <div className="flex items-center justify-between text-[11px] text-coffee-300 pt-1 border-t border-cream-200">
-                              <span>Tiempo en salón:</span>
-                              <span className="font-medium">
-                                Hace {timeAgo(mesa.ocupado_desde || mesa.updated_at)}
-                              </span>
+                            <div className="flex justify-between text-[11px] text-coffee-400 pt-1">
+                              <span>Ocupada hace:</span>
+                              <span>{timeAgo(mesa.ocupado_desde || mesa.updated_at)}</span>
                             </div>
                           )}
                         </div>
                       )}
 
                       {isLibre && (
-                        <div className="mt-3 p-3 rounded-xl bg-cream-50 border border-dashed border-cream-300 text-center">
-                          <p className="text-xs text-coffee-400 font-medium">Mesa disponible</p>
-                          <p className="text-[11px] text-coffee-300 mt-0.5">
-                            Lista para recibir comensales
-                          </p>
+                        <div className="py-4 text-center text-xs text-coffee-400 border-t border-cream-100 mb-2">
+                          Disponible para servicio
                         </div>
                       )}
 
                       {isReservada && (
-                        <div className="mt-3 p-3 rounded-xl bg-coffee-50 border border-coffee-200 text-center">
-                          <p className="text-xs font-semibold text-coffee-700">Mesa Reservada</p>
-                          <p className="text-[11px] text-coffee-400 mt-0.5">
-                            Pendiente llegada del cliente
-                          </p>
+                        <div className="py-4 text-center text-xs text-coffee-500 border-t border-cream-100 mb-2">
+                          Reserva asignada
                         </div>
                       )}
                     </div>
 
-                    {/* Botonera de acciones por mesa */}
-                    <div className="mt-4 pt-3 border-t border-cream-200 flex gap-2">
+                    <div className="pt-2 border-t border-cream-100 flex gap-2">
                       {isLibre && (
                         <button
                           onClick={() => setMesaAsignar(mesa)}
-                          className="btn-primary text-xs w-full py-2"
+                          className="w-full text-xs font-medium py-1.5 bg-coffee-700 hover:bg-coffee-800 text-white rounded-lg transition-colors"
                         >
-                          Asignar Mesa
+                          Asignar mesa
                         </button>
                       )}
 
@@ -562,15 +390,14 @@ export default function RecepcionDashboard() {
                         <>
                           <button
                             onClick={() => setSelectedMesaCuenta(mesa)}
-                            className="btn-primary text-xs flex-1 py-1.5 bg-peach-600 hover:bg-peach-700 border-none shadow-sm"
+                            className="flex-1 text-xs font-medium py-1.5 bg-coffee-700 hover:bg-coffee-800 text-white rounded-lg transition-colors"
                           >
-                            🧾 Ver Cuenta
+                            Ver cuenta
                           </button>
                           <button
                             onClick={() => handleReleaseMesa(mesa)}
                             disabled={actionId === mesa.id}
-                            className="btn-secondary text-xs px-2.5 py-1.5 text-coffee-400 hover:text-coffee-700"
-                            title="Liberar mesa sin cerrar cuenta"
+                            className="px-2.5 text-xs font-medium py-1.5 text-coffee-500 hover:text-coffee-800 hover:bg-cream-100 border border-cream-200 rounded-lg transition-colors"
                           >
                             {actionId === mesa.id ? '...' : 'Liberar'}
                           </button>
@@ -581,9 +408,9 @@ export default function RecepcionDashboard() {
                         <button
                           onClick={() => handleActivateMesa(mesa)}
                           disabled={actionId === mesa.id}
-                          className="btn-primary text-xs w-full py-2"
+                          className="w-full text-xs font-medium py-1.5 bg-coffee-700 hover:bg-coffee-800 text-white rounded-lg transition-colors"
                         >
-                          Confirmar Llegada
+                          Confirmar llegada
                         </button>
                       )}
                     </div>
@@ -594,233 +421,177 @@ export default function RecepcionDashboard() {
           )}
         </div>
 
-        {/* Columna Derecha: Feed en Vivo y Alertas de Servicio */}
+        {/* Panel lateral: Pedidos que requieren acción */}
         <div className="space-y-4">
-          <div className="card p-4 bg-white shadow-sm border border-cream-200">
-            {/* Tabs del Feed */}
+          <div className="bg-white rounded-xl border border-cream-200 p-4">
             <div className="flex items-center justify-between border-b border-cream-200 pb-3 mb-4">
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 <button
-                  onClick={() => setFeedTab('alertas')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                    feedTab === 'alertas'
-                      ? 'bg-amber-100 text-amber-900'
-                      : 'text-coffee-400 hover:text-coffee-700'
+                  onClick={() => setTabAlertas('listos')}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    tabAlertas === 'listos'
+                      ? 'bg-coffee-700 text-white'
+                      : 'text-coffee-500 hover:text-coffee-800'
                   }`}
                 >
-                  ⚡ Alertas
-                  {pedidosAlertas.length > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px]">
-                      {pedidosAlertas.length}
-                    </span>
-                  )}
+                  Listos para servir ({pedidosListos.length})
                 </button>
                 <button
-                  onClick={() => setFeedTab('en_cocina')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                    feedTab === 'en_cocina'
-                      ? 'bg-coffee-100 text-coffee-800'
-                      : 'text-coffee-400 hover:text-coffee-700'
+                  onClick={() => setTabAlertas('pendientes')}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    tabAlertas === 'pendientes'
+                      ? 'bg-coffee-700 text-white'
+                      : 'text-coffee-500 hover:text-coffee-800'
                   }`}
                 >
-                  👨‍🍳 En Cocina ({pedidosEnCocina.length})
+                  Por confirmar ({pedidosPendientes.length})
                 </button>
               </div>
             </div>
 
-            {/* Contenido del Feed */}
-            {feedTab === 'alertas' && (
-              <div className="space-y-3">
-                {pedidosAlertas.length === 0 ? (
-                  <div className="text-center py-12 text-coffee-300">
-                    <span className="text-3xl block mb-2">✨</span>
-                    <p className="text-xs font-semibold text-coffee-600">Salón al día</p>
-                    <p className="text-[11px] text-coffee-300 mt-1">
-                      No hay pedidos pendientes de confirmación ni platos esperando ser servidos.
-                    </p>
-                  </div>
-                ) : (
-                  pedidosAlertas.map((pedido) => {
-                    const mesaCod = resolveMesaCodigo(pedido.mesa_id)
-                    const isListo = pedido.estado === 'listo'
-                    const isPendiente = pedido.estado === 'pendiente'
-
-                    return (
-                      <div
-                        key={pedido.id}
-                        className={`p-3.5 rounded-xl border transition-all ${
-                          isListo
-                            ? 'bg-amber-50/70 border-amber-300 ring-1 ring-amber-200'
-                            : 'bg-peach-50/60 border-peach-300'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">{isListo ? '🔔' : '📲'}</span>
-                            <div>
-                              <p className="text-xs font-black text-coffee-800">
-                                {isListo ? '¡Listo para servir!' : 'Nuevo Pedido QR'}
-                              </p>
-                              <p className="text-[11px] font-bold text-coffee-600">
-                                Mesa {mesaCod}
-                              </p>
-                            </div>
+            <div className="space-y-2.5">
+              {tabAlertas === 'listos' && (
+                <>
+                  {pedidosListos.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-coffee-400">
+                      No hay platos pendientes de entrega.
+                    </div>
+                  ) : (
+                    pedidosListos.map((pedido) => {
+                      const mesaCod = resolveMesaCodigo(pedido.mesa_id)
+                      return (
+                        <div
+                          key={pedido.id}
+                          className="p-3 rounded-lg border border-cream-300 bg-cream-50/50 space-y-2"
+                        >
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-semibold text-coffee-800">Mesa {mesaCod}</span>
+                            <span className="text-coffee-400 font-mono">
+                              {timeAgo(pedido.created_at)}
+                            </span>
                           </div>
-                          <span className="text-[10px] text-coffee-400 font-mono">
-                            {timeAgo(pedido.created_at)}
-                          </span>
-                        </div>
 
-                        {/* Lista de ítems del pedido con nombres reales */}
-                        <div className="my-2.5 py-2 px-2.5 rounded-lg bg-white/80 border border-cream-200 text-xs space-y-1">
-                          {pedido.items && pedido.items.length > 0 ? (
-                            pedido.items.map((it, idx) => {
-                              const prod = productos[it.producto_id]
-                              return (
-                                <div key={idx} className="flex justify-between items-center text-coffee-700">
-                                  <span className="font-medium truncate pr-2">
-                                    <strong className="text-peach-700">{it.cantidad}x</strong>{' '}
-                                    {prod ? prod.nombre : `Ítem #${it.producto_id.slice(-4)}`}
-                                  </span>
-                                  <span className="text-coffee-400 font-mono text-[11px]">
-                                    {formatCurrency(Number(it.precio_unitario) * it.cantidad)}
-                                  </span>
-                                </div>
-                              )
-                            })
-                          ) : (
-                            <span className="text-coffee-300 italic text-[11px]">Sin ítems detallados</span>
-                          )}
-                        </div>
+                          <div className="text-xs text-coffee-600 space-y-1">
+                            {pedido.items?.map((it, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>
+                                  {it.cantidad}x{' '}
+                                  {productos[it.producto_id]?.nombre || `Ítem #${it.producto_id.slice(-4)}`}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
 
-                        {/* Botón de acción rápida */}
-                        <div className="flex justify-end gap-2 pt-1">
-                          {isListo && (
-                            <button
-                              onClick={() => handleUpdateEstadoPedido(pedido.id, 'entregado')}
-                              disabled={actionId === pedido.id}
-                              className="btn-primary text-xs py-1.5 px-3 bg-amber-600 hover:bg-amber-700 border-none shadow-xs font-bold"
-                            >
-                              ✓ Marcar Entregado a Mesa
-                            </button>
-                          )}
-                          {isPendiente && (
-                            <button
-                              onClick={() => handleUpdateEstadoPedido(pedido.id, 'aceptado')}
-                              disabled={actionId === pedido.id}
-                              className="btn-primary text-xs py-1.5 px-3 bg-peach-600 hover:bg-peach-700 border-none shadow-xs font-bold"
-                            >
-                              ✓ Aceptar a Cocina
-                            </button>
-                          )}
+                          <button
+                            onClick={() => handleUpdateEstadoPedido(pedido.id, 'entregado')}
+                            disabled={actionId === pedido.id}
+                            className="w-full text-xs font-medium py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors"
+                          >
+                            Marcar entregado
+                          </button>
                         </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            )}
+                      )
+                    })
+                  )}
+                </>
+              )}
 
-            {feedTab === 'en_cocina' && (
-              <div className="space-y-3">
-                {pedidosEnCocina.length === 0 ? (
-                  <div className="text-center py-12 text-coffee-300">
-                    <p className="text-xs font-semibold text-coffee-600">Cocina despejada</p>
-                    <p className="text-[11px] text-coffee-300 mt-1">
-                      No hay pedidos en preparación en este instante.
-                    </p>
-                  </div>
-                ) : (
-                  pedidosEnCocina.map((pedido) => {
-                    const mesaCod = resolveMesaCodigo(pedido.mesa_id)
-                    return (
-                      <div
-                        key={pedido.id}
-                        className="p-3 rounded-xl border border-cream-300 bg-cream-50/50 space-y-2"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-xs text-coffee-800">Mesa {mesaCod}</span>
-                          <EstadoBadge estado={pedido.estado} />
+              {tabAlertas === 'pendientes' && (
+                <>
+                  {pedidosPendientes.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-coffee-400">
+                      No hay comandas pendientes de confirmación.
+                    </div>
+                  ) : (
+                    pedidosPendientes.map((pedido) => {
+                      const mesaCod = resolveMesaCodigo(pedido.mesa_id)
+                      return (
+                        <div
+                          key={pedido.id}
+                          className="p-3 rounded-lg border border-cream-300 bg-cream-50/50 space-y-2"
+                        >
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-semibold text-coffee-800">Mesa {mesaCod}</span>
+                            <span className="text-coffee-400 font-mono">
+                              {timeAgo(pedido.created_at)}
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-coffee-600 space-y-1">
+                            {pedido.items?.map((it, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span>
+                                  {it.cantidad}x{' '}
+                                  {productos[it.producto_id]?.nombre || `Ítem #${it.producto_id.slice(-4)}`}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <button
+                            onClick={() => handleUpdateEstadoPedido(pedido.id, 'aceptado')}
+                            disabled={actionId === pedido.id}
+                            className="w-full text-xs font-medium py-1.5 bg-coffee-700 hover:bg-coffee-800 text-white rounded-md transition-colors"
+                          >
+                            Enviar a cocina
+                          </button>
                         </div>
-                        <div className="text-xs text-coffee-500 space-y-0.5">
-                          {pedido.items?.map((it, idx) => (
-                            <div key={idx} className="flex justify-between">
-                              <span>
-                                {it.cantidad}x{' '}
-                                {productos[it.producto_id]?.nombre || `Ítem #${it.producto_id.slice(-4)}`}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="text-[10px] text-coffee-300 text-right">
-                          En marcha hace {timeAgo(pedido.created_at)}
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            )}
+                      )
+                    })
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Modal 1: Ver Cuenta y Cobro de Mesa */}
+      {/* Modal: Detalle de Cuenta */}
       {selectedMesaCuenta && (
-        <div className="fixed inset-0 z-50 bg-coffee-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-cream-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-start justify-between border-b border-cream-200 pb-3 mb-4">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-cream-200">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-cream-200">
               <div>
-                <span className="text-[11px] font-bold text-peach-700 uppercase tracking-wider">
-                  Ticket y Facturación
-                </span>
-                <h3 className="text-xl font-black text-coffee-800">
-                  Mesa {selectedMesaCuenta.codigo}
+                <h3 className="text-base font-semibold text-coffee-800">
+                  Cuenta Mesa {selectedMesaCuenta.codigo}
                 </h3>
+                <span className="text-xs text-coffee-400">Resumen de consumo para cierre</span>
               </div>
               <button
                 onClick={() => setSelectedMesaCuenta(null)}
-                className="w-8 h-8 rounded-full bg-cream-100 hover:bg-cream-200 text-coffee-400 flex items-center justify-center font-bold"
+                className="text-coffee-400 hover:text-coffee-700 text-sm font-semibold p-1"
               >
-                ✕
+                Cerrar
               </button>
             </div>
 
-            {/* Listado consolidado de comandas de la mesa */}
-            <div className="max-h-72 overflow-y-auto space-y-3 pr-1">
+            <div className="max-h-64 overflow-y-auto space-y-3 pr-1 text-xs">
               {(pedidosPorMesa[selectedMesaCuenta.codigo] || []).length === 0 ? (
-                <p className="text-center text-xs text-coffee-300 py-8">
-                  No hay pedidos registrados para esta mesa.
+                <p className="text-center text-coffee-400 py-6">
+                  No hay comandas registradas en esta mesa.
                 </p>
               ) : (
                 (pedidosPorMesa[selectedMesaCuenta.codigo] || []).map((pedido, pIdx) => (
-                  <div key={pedido.id} className="p-3 rounded-xl bg-cream-50 border border-cream-200">
-                    <div className="flex justify-between items-center mb-1 text-xs">
-                      <span className="font-bold text-coffee-700">Comanda #{pIdx + 1}</span>
-                      <span className="text-[11px] text-coffee-300">
+                  <div key={pedido.id} className="p-3 rounded-lg bg-cream-50/60 border border-cream-200">
+                    <div className="flex justify-between font-medium text-coffee-700 mb-1">
+                      <span>Comanda #{pIdx + 1}</span>
+                      <span className="text-coffee-400">
                         {new Date(pedido.created_at).toLocaleTimeString([], {
                           hour: '2-digit',
                           minute: '2-digit',
                         })}
                       </span>
                     </div>
-                    <div className="divide-y divide-cream-200 text-xs">
+                    <div className="divide-y divide-cream-100">
                       {pedido.items?.map((it, idx) => {
                         const prod = productos[it.producto_id]
                         const sub = Number(it.precio_unitario) * it.cantidad
                         return (
-                          <div key={idx} className="py-1.5 flex justify-between items-center">
-                            <div>
-                              <p className="font-semibold text-coffee-800">
-                                {it.cantidad}x {prod ? prod.nombre : `Plato #${it.producto_id.slice(-4)}`}
-                              </p>
-                              <p className="text-[10px] text-coffee-400">
-                                {formatCurrency(Number(it.precio_unitario))} c/u
-                              </p>
-                            </div>
-                            <span className="font-mono font-bold text-coffee-700">
-                              {formatCurrency(sub)}
+                          <div key={idx} className="py-1 flex justify-between text-coffee-600">
+                            <span>
+                              {it.cantidad}x {prod ? prod.nombre : `Ítem #${it.producto_id.slice(-4)}`}
                             </span>
+                            <span className="font-mono text-coffee-700">{formatCurrency(sub)}</span>
                           </div>
                         )
                       })}
@@ -830,84 +601,72 @@ export default function RecepcionDashboard() {
               )}
             </div>
 
-            {/* Totales y Liquidación */}
             {(() => {
               const subtotal = totalMesa(selectedMesaCuenta.codigo)
               const propinaSugerida = subtotal * 0.1
               const totalConServicio = subtotal + propinaSugerida
 
               return (
-                <div className="mt-4 pt-3 border-t border-cream-200 space-y-2 bg-cream-50/50 p-4 rounded-2xl">
-                  <div className="flex justify-between text-xs text-coffee-600">
-                    <span>Subtotal consumo:</span>
-                    <span className="font-mono font-bold">{formatCurrency(subtotal)}</span>
+                <div className="mt-4 pt-3 border-t border-cream-200 space-y-1.5 text-xs">
+                  <div className="flex justify-between text-coffee-500">
+                    <span>Subtotal:</span>
+                    <span className="font-mono">{formatCurrency(subtotal)}</span>
                   </div>
-                  <div className="flex justify-between text-xs text-coffee-400">
+                  <div className="flex justify-between text-coffee-500">
                     <span>Propina sugerida (10%):</span>
                     <span className="font-mono">{formatCurrency(propinaSugerida)}</span>
                   </div>
-                  <div className="flex justify-between text-base font-black text-coffee-900 pt-2 border-t border-cream-200">
-                    <span>Total a pagar:</span>
-                    <span className="text-peach-700">{formatCurrency(totalConServicio)}</span>
+                  <div className="flex justify-between text-sm font-semibold text-coffee-800 pt-2 border-t border-cream-200">
+                    <span>Total a cobrar:</span>
+                    <span>{formatCurrency(totalConServicio)}</span>
                   </div>
                 </div>
               )
             })()}
 
-            {/* Acciones de Cobro */}
-            <div className="mt-6 flex flex-wrap gap-2">
+            <div className="mt-6 flex gap-2">
               <button
                 onClick={() => window.print()}
-                className="btn-secondary text-xs flex-1 py-2.5"
+                className="flex-1 py-2 text-xs font-medium text-coffee-700 bg-white hover:bg-cream-100 border border-cream-200 rounded-lg transition-colors"
               >
-                🖨️ Imprimir Pre-cuenta
+                Imprimir ticket
               </button>
               <button
                 onClick={() => handleCobrarYLiberar(selectedMesaCuenta)}
                 disabled={actionId === selectedMesaCuenta.id}
-                className="btn-primary text-xs flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 border-none font-bold"
+                className="flex-1 py-2 text-xs font-medium bg-coffee-800 hover:bg-coffee-900 text-white rounded-lg transition-colors"
               >
-                {actionId === selectedMesaCuenta.id ? 'Procesando...' : '💰 Cobrar y Liberar Mesa'}
+                {actionId === selectedMesaCuenta.id ? 'Procesando...' : 'Cobrar y liberar'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal 2: Asignar Mesa / Sentar Comensales */}
+      {/* Modal: Asignar Mesa */}
       {mesaAsignar && (
-        <div className="fixed inset-0 z-50 bg-coffee-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-cream-200 animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="text-lg font-black text-coffee-800 mb-1">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-cream-200">
+            <h3 className="text-base font-semibold text-coffee-800 mb-1">
               Asignar Mesa {mesaAsignar.codigo}
             </h3>
             <p className="text-xs text-coffee-400 mb-5">
-              Confirmar comensales y marcar la mesa como ocupada en el salón.
+              Confirmar la ocupación de la mesa para comensales en el salón.
             </p>
-
-            <div className="p-4 rounded-2xl bg-cream-50 border border-cream-200 mb-5 text-center">
-              <span className="text-3xl block mb-1">👥</span>
-              <p className="text-xs font-semibold text-coffee-700">
-                La mesa pasará a estado <strong>ocupada</strong>
-              </p>
-              <p className="text-[11px] text-coffee-300 mt-1">
-                Los comensales podrán ordenar escaneando el código QR de la mesa.
-              </p>
-            </div>
 
             <div className="flex gap-2">
               <button
                 onClick={() => setMesaAsignar(null)}
-                className="btn-secondary text-xs flex-1 py-2"
+                className="flex-1 py-2 text-xs font-medium text-coffee-600 bg-white hover:bg-cream-100 border border-cream-200 rounded-lg transition-colors"
               >
                 Cancelar
               </button>
               <button
                 onClick={() => handleActivateMesa(mesaAsignar)}
                 disabled={actionId === mesaAsignar.id}
-                className="btn-primary text-xs flex-1 py-2"
+                className="flex-1 py-2 text-xs font-medium bg-coffee-700 hover:bg-coffee-800 text-white rounded-lg transition-colors"
               >
-                {actionId === mesaAsignar.id ? 'Asignando...' : 'Confirmar Ingreso'}
+                {actionId === mesaAsignar.id ? 'Asignando...' : 'Confirmar'}
               </button>
             </div>
           </div>
