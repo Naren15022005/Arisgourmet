@@ -5,3 +5,16 @@ snapshot-full.tar
 snapshot_extract/
 
 gh-logs/
+*.log
+
+# Environment variables
+.env
+.env.local
+backend/.env
+
+# Build outputs
+dist/
+dist
+frontend/dist/
+backend/dist/
+.DS_Store
