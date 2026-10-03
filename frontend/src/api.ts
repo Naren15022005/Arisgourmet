@@ -149,6 +149,10 @@ export interface Mesa {
   numero: number
   estado: 'libre' | 'ocupada' | 'reservada'
   restaurante_id: string
+  ocupado?: number
+  ocupado_desde?: string | null
+  created_at?: string
+  updated_at?: string
 }
 
 export type PedidoEstado =
