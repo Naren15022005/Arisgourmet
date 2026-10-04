@@ -12,14 +12,8 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const profile = getTokenPayload()
-    setUser(profile)
-    setLoading(false)
-  }, [])
+  const [user, setUser] = useState<UserProfile | null>(() => getTokenPayload())
+  const [loading, setLoading] = useState(false)
 
   const login = async (email: string, password: string) => {
     const data = await api.auth.login({ email, password })

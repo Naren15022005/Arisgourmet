@@ -20,6 +20,12 @@ export class Producto {
   @Column({ type: 'int', default: 0 })
   tiempo_base_minutos: number;
 
+  @Column({ name: 'categoria', type: 'varchar', length: 50, default: 'plato_fuerte' })
+  categoria: string;
+
+  @Column({ name: 'detalles_json', type: 'text', nullable: true })
+  detalles_json?: string | null;
+
   @Column({ name: 'restaurante_id', type: 'varchar', length: 255, nullable: true })
   restaurante_id?: string | null;
 

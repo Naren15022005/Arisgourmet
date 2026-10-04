@@ -19,7 +19,7 @@ export class AuthController {
     const { email, password } = body;
     const user = await this.authService.validateUser(email, password);
     if (!user) return { error: 'invalid_credentials' };
-    const token = this.authService.generateToken({ sub: user.id, email: user.email, role: user.role, restaurante_id: user.restaurante_id });
+    const token = await this.authService.generateTokenForUser(user);
     // create a rotating refresh token
     const refresh = await this.refreshService.createForUser(user);
     return { access_token: token, refresh_token: refresh };

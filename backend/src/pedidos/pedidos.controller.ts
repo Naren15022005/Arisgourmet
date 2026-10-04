@@ -25,7 +25,7 @@ export class PedidosController {
    */
   @Post()
   async create(@Body() body: CreatePedidoDto, @Req() req: any) {
-    const restaurante_id = body.restaurante_id ?? req.restauranteId;
+    const restaurante_id = req.restauranteId ?? body.restaurante_id;
     return this.pedidosService.create({ ...body, restaurante_id });
   }
 

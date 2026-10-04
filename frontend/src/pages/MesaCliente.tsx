@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { api, type Producto, type Pedido, type PedidoEstado } from '../api'
 import { useSocket } from '../hooks/useSocket'
 import EstadoBadge from '../components/EstadoBadge'
@@ -11,6 +11,8 @@ interface CartItem {
 
 export default function MesaCliente() {
   const { codigo } = useParams<{ codigo: string }>()
+  const [searchParams] = useSearchParams()
+  const restauranteId = searchParams.get('r') || undefined
   const mesaCodigo = codigo || 'MESA-1'
 
   const [productos, setProductos] = useState<Producto[]>([])
@@ -20,16 +22,26 @@ export default function MesaCliente() {
   const [activePedido, setActivePedido] = useState<Pedido | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [search, setSearch] = useState('')
+  const [selectedCat, setSelectedCat] = useState<string>('todos')
+
+  const CLIENT_CATEGORIES = [
+    { id: 'todos', label: 'Todos', icon: '🍽️' },
+    { id: 'menu_del_dia', label: 'Menú del Día', icon: '☀️' },
+    { id: 'plato_fuerte', label: 'Platos Fuertes', icon: '🥩' },
+    { id: 'extra', label: 'Extras', icon: '🥗' },
+    { id: 'bebida', label: 'Bebidas', icon: '🍹' },
+    { id: 'postre', label: 'Postres', icon: '🍰' },
+  ]
 
   // Load public products
   const fetchMenu = useCallback(async () => {
     try {
-      const data = await api.productos.listPublic()
+      const data = await api.productos.listPublic(restauranteId)
       setProductos(data)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [restauranteId])
 
   useEffect(() => {
     fetchMenu()
@@ -47,7 +59,9 @@ export default function MesaCliente() {
         }
       },
       [activePedido]
-    )
+    ),
+    undefined,
+    restauranteId
   )
 
   const addToCart = (producto: Producto) => {
@@ -85,6 +99,7 @@ export default function MesaCliente() {
     try {
       const newPedido = await api.pedidos.create({
         mesa_id: mesaCodigo,
+        restaurante_id: restauranteId,
         items: cart.map((i) => ({
           producto_id: i.producto.id,
           cantidad: i.cantidad,
@@ -101,12 +116,18 @@ export default function MesaCliente() {
     }
   }
 
-  const filtered = productos.filter(
-    (p) =>
-      p.disponible &&
-      (p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        (p.descripcion && p.descripcion.toLowerCase().includes(search.toLowerCase())))
-  )
+  const filtered = productos.filter((p) => {
+    if (!p.disponible) return false
+    if (selectedCat !== 'todos' && (p.categoria || 'plato_fuerte') !== selectedCat) {
+      return false
+    }
+    if (!search.trim()) return true
+    const q = search.toLowerCase()
+    return (
+      p.nombre.toLowerCase().includes(q) ||
+      (p.descripcion && p.descripcion.toLowerCase().includes(q))
+    )
+  })
 
   return (
     <div className="min-h-screen bg-cream-100 pb-24 text-coffee-700">
@@ -122,9 +143,9 @@ export default function MesaCliente() {
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-cream-200 text-coffee-700 text-xs font-mono font-bold">
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-cream-200 text-coffee-700 text-xs font-mono font-bold shadow-2xs">
           <span>📍</span>
-          <span>{mesaCodigo}</span>
+          <span>{mesaCodigo.toUpperCase().startsWith('MESA') ? mesaCodigo.toUpperCase() : `MESA ${mesaCodigo}`}</span>
         </div>
       </header>
 
@@ -185,7 +206,7 @@ export default function MesaCliente() {
       {/* Main Content */}
       <main className="max-w-2xl mx-auto px-4 pt-4">
         {/* Search */}
-        <div className="bg-white p-3 rounded-2xl border border-cream-200 shadow-xs mb-5 flex items-center gap-2">
+        <div className="bg-white p-3 rounded-2xl border border-cream-200 shadow-xs mb-3 flex items-center gap-2">
           <svg className="w-4 h-4 text-coffee-300 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -196,6 +217,24 @@ export default function MesaCliente() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full text-xs bg-transparent outline-none text-coffee-700 placeholder:text-coffee-300"
           />
+        </div>
+
+        {/* Category Chips Bar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 mb-4">
+          {CLIENT_CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCat(cat.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer select-none ${
+                selectedCat === cat.id
+                  ? 'bg-peach-500 text-white shadow-2xs'
+                  : 'bg-white text-coffee-600 border border-cream-200 hover:bg-cream-100'
+              }`}
+            >
+              <span>{cat.icon}</span>
+              <span>{cat.label}</span>
+            </button>
+          ))}
         </div>
 
         {/* Menu list */}
@@ -215,9 +254,18 @@ export default function MesaCliente() {
               return (
                 <div
                   key={p.id}
-                  className="card p-4 flex items-start justify-between gap-4 border border-cream-200 hover:border-peach-200 transition-colors shadow-xs"
+                  className={`card p-4 flex items-start justify-between gap-4 border transition-all shadow-xs ${
+                    p.categoria === 'menu_del_dia'
+                      ? 'border-amber-400 bg-amber-50/20 ring-1 ring-amber-300/50'
+                      : 'border-cream-200 hover:border-peach-200'
+                  }`}
                 >
                   <div className="flex-1">
+                    {p.categoria === 'menu_del_dia' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold border border-amber-300 mb-1">
+                        <span>☀️</span> Menú del Día Completo
+                      </span>
+                    )}
                     <h3 className="font-bold text-coffee-700 text-sm leading-snug mb-1">{p.nombre}</h3>
                     <p className="text-xs text-coffee-300 leading-relaxed mb-2.5">
                       {p.descripcion || 'Especialidad de la casa preparada al momento.'}
@@ -300,7 +348,7 @@ export default function MesaCliente() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto divide-y divide-cream-100 pr-1 space-y-2 mb-4">
+            <div className="flex-1 overflow-y-auto scrollbar-none divide-y divide-cream-100 pr-1 space-y-2 mb-4">
               {cart.map((item) => (
                 <div key={item.producto.id} className="py-2.5 flex items-center justify-between">
                   <div>

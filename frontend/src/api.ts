@@ -35,9 +35,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
         // refresh failed
       }
     }
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('refresh_token')
-    window.location.href = '/login'
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard')) {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      window.location.href = '/login'
+    }
     throw new ApiError(401, 'Unauthorized')
   }
 
@@ -80,6 +82,7 @@ export interface UserProfile {
   email: string
   nombre: string
   restaurante_id: string
+  restaurante_slug?: string
   role: string
 }
 
@@ -105,12 +108,26 @@ export const api = {
   // ── Mesas ──────────────────────────────────────────────────────────────────
   mesas: {
     list: () => request<Mesa[]>('/api/mesas'),
-    create: (codigo: string) =>
-      request<Mesa>('/api/mesas', { method: 'POST', body: JSON.stringify({ codigo }) }),
+    create: (codigo: string, capacidad?: number) =>
+      request<Mesa>('/api/mesas', { method: 'POST', body: JSON.stringify({ codigo, capacidad }) }),
+    createBatch: (cantidad: number, prefijo?: string) =>
+      request<Mesa[]>('/api/mesas/batch', {
+        method: 'POST',
+        body: JSON.stringify({ cantidad, prefijo }),
+      }),
+    updateCapacidad: (id: string, capacidad: number) =>
+      request<Mesa>(`/api/mesas/${id}/capacidad`, {
+        method: 'PATCH',
+        body: JSON.stringify({ capacidad }),
+      }),
+    delete: (id: string) =>
+      request<{ success: boolean; id: string }>(`/api/mesas/${id}`, { method: 'DELETE' }),
     activate: (codigo_qr: string) =>
       request<Mesa>('/api/mesas/activate', { method: 'POST', body: JSON.stringify({ codigo_qr }) }),
     release: (codigo_qr: string) =>
       request<Mesa>('/api/mesas/release', { method: 'POST', body: JSON.stringify({ codigo_qr }) }),
+    getRestaurante: () =>
+      request<{ id: string; nombre: string; slug?: string }>('/api/mesas/restaurante'),
   },
 
   // ── Pedidos ────────────────────────────────────────────────────────────────
@@ -133,11 +150,24 @@ export const api = {
 
   // ── Productos ──────────────────────────────────────────────────────────────
   productos: {
-    list: () => request<Producto[]>('/api/productos/admin'),
-    listPublic: () => request<Producto[]>('/api/productos'),
+    list: (categoria?: string) => {
+      const qs = categoria ? `?categoria=${encodeURIComponent(categoria)}` : ''
+      return request<Producto[]>(`/api/productos/admin${qs}`)
+    },
+    listPublic: (restauranteId?: string, categoria?: string) => {
+      const params = new URLSearchParams()
+      if (restauranteId) params.set('restaurante_id', restauranteId)
+      if (categoria) params.set('categoria', categoria)
+      const qs = params.toString() ? `?${params.toString()}` : ''
+      return request<Producto[]>(`/api/productos${qs}`)
+    },
     create: (payload: CreateProductoPayload) =>
       request<Producto>('/api/productos', { method: 'POST', body: JSON.stringify(payload) }),
+    update: (id: string, payload: UpdateProductoPayload) =>
+      request<Producto>(`/api/productos/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
     toggle: (id: string) => request<Producto>(`/api/productos/${id}/toggle`, { method: 'PATCH' }),
+    delete: (id: string) =>
+      request<{ success: boolean; id: string }>(`/api/productos/${id}`, { method: 'DELETE' }),
   },
 }
 
@@ -149,6 +179,7 @@ export interface Mesa {
   numero: number
   estado: 'libre' | 'ocupada' | 'reservada'
   restaurante_id: string
+  capacidad?: number
   ocupado?: number
   ocupado_desde?: string | null
   created_at?: string
@@ -180,14 +211,35 @@ export interface Pedido {
   updated_at: string
 }
 
+export type ProductoCategoria =
+  | 'menu_del_dia'
+  | 'plato_fuerte'
+  | 'extra'
+  | 'bebida'
+  | 'postre'
+
+export interface MenuDelDiaDetalles {
+  platos_fuertes?: string[] // IDs de productos
+  extras?: string[] // IDs de productos
+  bebidas?: string[] // IDs de productos
+  postres?: string[] // IDs de productos
+  incluye_bebida?: boolean
+  incluye_postre?: boolean
+  nota?: string
+}
+
 export interface Producto {
   id: string
   nombre: string
   descripcion?: string
   precio: number
+  categoria?: ProductoCategoria | string
+  detalles_json?: string | null
   disponible: boolean
   tiempo_base_minutos: number
   restaurante_id?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface CreatePedidoPayload {
@@ -200,6 +252,18 @@ export interface CreateProductoPayload {
   nombre: string
   descripcion?: string
   precio: number
+  categoria?: ProductoCategoria | string
+  detalles_json?: string
+  disponible?: boolean
+  tiempo_base_minutos?: number
+}
+
+export interface UpdateProductoPayload {
+  nombre?: string
+  descripcion?: string
+  precio?: number
+  categoria?: ProductoCategoria | string
+  detalles_json?: string
   disponible?: boolean
   tiempo_base_minutos?: number
 }
@@ -216,6 +280,7 @@ export function getTokenPayload(): UserProfile | null {
       email: payload.email,
       nombre: payload.nombre ?? payload.email,
       restaurante_id: payload.restaurante_id,
+      restaurante_slug: payload.restaurante_slug,
       role: payload.role,
     }
   } catch {

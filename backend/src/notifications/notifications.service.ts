@@ -1,4 +1,5 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import { Server } from 'socket.io';
 import Redis from 'ioredis';
 
@@ -23,6 +24,8 @@ export class NotificationsService implements OnModuleDestroy {
   private io?: Server;
   private subscriber?: Redis;
 
+  constructor(private readonly dataSource?: DataSource) {}
+
   /** Call this once the HTTP server is ready (in main.ts bootstrap). */
   init(httpServer: any): void {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -30,17 +33,39 @@ export class NotificationsService implements OnModuleDestroy {
     this.io = new Server(httpServer, {
       cors: { origin: '*', methods: ['GET', 'POST'] },
       path: '/notifications',
+      transports: ['websocket', 'polling'],
+      pingInterval: 15000,
+      pingTimeout: 10000,
+      allowEIO3: true,
+      maxHttpBufferSize: 1e6,
     });
 
     this.io.on('connection', (socket) => {
       console.log('[ws] client connected', socket.id);
 
-      // Client should emit 'join' with its restaurante_id to subscribe to events
-      socket.on('join', (restauranteId: string) => {
-        if (restauranteId) {
-          socket.join(`restaurante:${restauranteId}`);
-          socket.emit('joined', { restaurante_id: restauranteId });
-          console.log('[ws] client', socket.id, 'joined restaurante:', restauranteId);
+      // Client should emit 'join' with its restaurante_id (or slug) to subscribe to events
+      socket.on('join', async (restauranteIdOrSlug: string) => {
+        if (restauranteIdOrSlug) {
+          const raw = String(restauranteIdOrSlug).trim();
+          socket.join(`restaurante:${raw}`);
+          socket.emit('joined', { restaurante_id: raw });
+          console.log('[ws] client', socket.id, 'joined restaurante:', raw);
+
+          if (this.dataSource) {
+            try {
+              const rows = await this.dataSource.query(
+                'SELECT id, slug FROM restaurante WHERE id = ? OR slug = ? LIMIT 1',
+                [raw, raw],
+              );
+              if (rows && rows.length > 0) {
+                const { id, slug } = rows[0];
+                if (id && id !== raw) socket.join(`restaurante:${id}`);
+                if (slug && slug !== raw) socket.join(`restaurante:${slug}`);
+              }
+            } catch {
+              // ignore
+            }
+          }
         }
       });
 

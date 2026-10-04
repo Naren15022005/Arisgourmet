@@ -24,7 +24,15 @@ export default function RecepcionDashboard() {
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [productos, setProductos] = useState<Record<string, Producto>>({})
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'todas' | 'libre' | 'ocupada' | 'reservada'>('todas')
+  const [filter, setFilter] = useState<'todas' | 'libre' | 'ocupada' | 'reservada'>(() => {
+    try {
+      const stored = localStorage.getItem('aris_recepcion_filter')
+      if (stored === 'todas' || stored === 'libre' || stored === 'ocupada' || stored === 'reservada') {
+        return stored
+      }
+    } catch {}
+    return 'todas'
+  })
   const [selectedMesa, setSelectedMesa] = useState<Mesa | null>(null)
   const [actionId, setActionId] = useState<string | null>(null)
   const [clock, setClock] = useState(() =>
@@ -32,7 +40,25 @@ export default function RecepcionDashboard() {
   )
   const [selectedMesaCuenta, setSelectedMesaCuenta] = useState<Mesa | null>(null)
   const [mesaAsignar, setMesaAsignar] = useState<Mesa | null>(null)
-  const [tabFeed, setTabFeed] = useState<'detalle' | 'alertas'>('detalle')
+  const [tabFeed, setTabFeed] = useState<'detalle' | 'alertas'>(() => {
+    try {
+      const stored = localStorage.getItem('aris_recepcion_tabfeed')
+      if (stored === 'detalle' || stored === 'alertas') {
+        return stored
+      }
+    } catch {}
+    return 'detalle'
+  })
+
+  const handleSetFilter = (newFilter: 'todas' | 'libre' | 'ocupada' | 'reservada') => {
+    setFilter(newFilter)
+    try { localStorage.setItem('aris_recepcion_filter', newFilter) } catch {}
+  }
+
+  const handleSetTabFeed = (newTab: 'detalle' | 'alertas') => {
+    setTabFeed(newTab)
+    try { localStorage.setItem('aris_recepcion_tabfeed', newTab) } catch {}
+  }
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -76,7 +102,8 @@ export default function RecepcionDashboard() {
   useSocket(
     useCallback(() => {
       fetchAll()
-    }, [fetchAll])
+    }, [fetchAll]),
+    fetchAll
   )
 
   const mesasMap = useMemo(() => {
@@ -189,79 +216,91 @@ export default function RecepcionDashboard() {
   const activeMesaTotal = selectedMesa ? totalMesa(selectedMesa.codigo) : 0
 
   return (
-    <DashboardLayout title="Recepción">
-      {/* Encabezado minimalista */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 mb-6 border-b border-cream-200 gap-4">
+    <DashboardLayout title="Dashboard Principal">
+      {/* Encabezado Principal */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-8 border-b border-slate-200 gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-coffee-800 tracking-tight">
-            Plano de Salón y Recepción
+          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
+            Dashboard Principal
           </h1>
-          <p className="text-xs text-coffee-400 mt-0.5">
-            Selecciona una mesa en el plano para consultar comensales, comanda y cuenta.
+          <p className="text-sm text-slate-500 mt-1">
+            Visión general del sistema, estado del salón y actividad reciente.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="text-xs font-mono text-coffee-500 bg-white px-3 py-1.5 rounded-lg border border-cream-200">
+          <div className="text-sm font-mono text-slate-600 bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-xs">
             {clock}
           </div>
           <button
             onClick={() => fetchAll()}
             disabled={loading}
-            className="text-xs font-medium text-coffee-600 hover:text-coffee-800 bg-white hover:bg-cream-100 border border-cream-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            className="text-sm font-medium text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 shadow-xs px-4 py-2 rounded-lg transition-colors cursor-pointer"
           >
-            {loading ? 'Actualizando...' : 'Actualizar'}
+            {loading ? 'Actualizando...' : 'Actualizar Datos'}
           </button>
         </div>
       </div>
 
-      {/* Métricas y Leyenda del Plano */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white p-3 rounded-xl border border-cream-200">
-        <div className="flex items-center gap-1">
-          {[
-            { key: 'todas', label: 'Todas', count: mesas.length },
-            { key: 'libre', label: 'Libres', count: libres },
-            { key: 'ocupada', label: 'Ocupadas', count: ocupadas },
-            { key: 'reservada', label: 'Reservadas', count: reservadas },
-          ].map(({ key, label, count }) => (
-            <button
-              key={key}
-              onClick={() => setFilter(key as any)}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                filter === key
-                  ? 'bg-coffee-700 text-white'
-                  : 'text-coffee-500 hover:text-coffee-800 hover:bg-cream-50'
-              }`}
-            >
-              {label} <span className="opacity-75">({count})</span>
-            </button>
-          ))}
+      {/* Tarjetas KPI */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Ocupación</span>
+          <div className="flex items-end gap-2">
+            <span className="text-2xl font-bold text-slate-900">{ocupadas}</span>
+            <span className="text-sm font-medium text-slate-400 mb-0.5">/ {mesas.length} mesas</span>
+          </div>
         </div>
-
-        {/* Leyenda visual estilo plano arquitectónico */}
-        <div className="flex items-center gap-4 text-[11px] text-coffee-500 font-medium">
-          <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-xs bg-[#eef2f6] border border-slate-300" />
-            <span>Libre</span>
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Alertas Activas</span>
+          <div className="flex items-end gap-2">
+            <span className="text-2xl font-bold text-rose-600">{pedidosListos.length + pedidosPendientes.length}</span>
+            <span className="text-sm font-medium text-slate-400 mb-0.5">pendientes</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-xs bg-rose-50 border border-rose-400" />
-            <span>En servicio (Ocupada)</span>
+        </div>
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Disponibles</span>
+          <div className="flex items-end gap-2">
+            <span className="text-2xl font-bold text-emerald-600">{libres}</span>
+            <span className="text-sm font-medium text-slate-400 mb-0.5">mesas libres</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-xs bg-amber-50 border border-amber-400" />
-            <span>Reservada</span>
+        </div>
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Reservas</span>
+          <div className="flex items-end gap-2">
+            <span className="text-2xl font-bold text-amber-600">{reservadas}</span>
+            <span className="text-sm font-medium text-slate-400 mb-0.5">confirmadas</span>
           </div>
         </div>
       </div>
 
-      {/* Grid del Plano y Panel Lateral */}
-      <div className="grid lg:grid-cols-12 gap-6">
-        {/* Plano de Salón (Área Arquitectónica) */}
-        <div className="lg:col-span-8 bg-[#f8fafc] rounded-2xl border border-slate-200 p-6 sm:p-8 min-h-[460px] flex flex-col justify-between shadow-2xs relative">
-          <div className="text-[11px] font-mono text-slate-400 uppercase tracking-widest mb-6 flex justify-between items-center border-b border-slate-200 pb-2">
-            <span>DISTRIBUCIÓN DEL SALÓN</span>
-            <span>CAPACIDAD: {mesas.reduce((acc, m) => acc + getMesaCapacity(m.codigo), 0)} SILLAS</span>
+      {/* Main Grid: Mesas y Actividad */}
+      <div className="grid lg:grid-cols-12 gap-8">
+        
+        {/* Columna Izquierda: Estado de Mesas */}
+        <div className="lg:col-span-8 flex flex-col">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <h2 className="text-lg font-medium text-slate-800">Directorio de Mesas</h2>
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+              {[
+                { key: 'todas', label: 'Todas' },
+                { key: 'libre', label: 'Libres' },
+                { key: 'ocupada', label: 'Ocupadas' },
+                { key: 'reservada', label: 'Reservadas' },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => handleSetFilter(key as any)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                    filter === key
+                      ? 'bg-white text-slate-800 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {loading ? (
@@ -273,7 +312,7 @@ export default function RecepcionDashboard() {
               <p className="text-xs">No hay mesas con este filtro.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-3 gap-y-10 gap-x-6 items-center justify-items-center py-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-8 gap-x-4 items-center justify-items-center pb-12">
               {filteredMesas.map((mesa) => {
                 const consumo = totalMesa(mesa.codigo)
                 return (
@@ -284,17 +323,13 @@ export default function RecepcionDashboard() {
                     selected={selectedMesa?.id === mesa.id}
                     onClick={() => {
                       setSelectedMesa(mesa)
-                      setTabFeed('detalle')
+                      handleSetTabFeed('detalle')
                     }}
                   />
                 )
               })}
             </div>
           )}
-
-          <div className="mt-8 pt-3 border-t border-slate-200/80 text-[11px] text-slate-400 text-center">
-            Haz clic en cualquier mesa para gestionar comensales o consultar la cuenta.
-          </div>
         </div>
 
         {/* Panel Lateral: Detalle de Mesa Seleccionada y Alertas */}
@@ -303,7 +338,7 @@ export default function RecepcionDashboard() {
             {/* Selector de Pestaña */}
             <div className="flex border-b border-cream-200 pb-3 mb-4 gap-2">
               <button
-                onClick={() => setTabFeed('detalle')}
+                onClick={() => handleSetTabFeed('detalle')}
                 className={`flex-1 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                   tabFeed === 'detalle'
                     ? 'bg-coffee-700 text-white'
@@ -313,7 +348,7 @@ export default function RecepcionDashboard() {
                 Mesa Seleccionada
               </button>
               <button
-                onClick={() => setTabFeed('alertas')}
+                onClick={() => handleSetTabFeed('alertas')}
                 className={`flex-1 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                   tabFeed === 'alertas'
                     ? 'bg-coffee-700 text-white'

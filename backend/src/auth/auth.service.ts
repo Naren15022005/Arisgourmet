@@ -51,6 +51,31 @@ export class AuthService {
     return user;
   }
 
+  async generateTokenForUser(user: Usuario): Promise<string> {
+    let restauranteSlug: string | undefined = undefined;
+    if (user.restaurante_id) {
+      try {
+        const rows = await this.dataSource.query(
+          'SELECT slug FROM restaurante WHERE id = ? LIMIT 1',
+          [user.restaurante_id],
+        );
+        if (rows && rows.length > 0 && rows[0].slug) {
+          restauranteSlug = rows[0].slug;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return this.generateToken({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      restaurante_id: user.restaurante_id,
+      restaurante_slug: restauranteSlug,
+    });
+  }
+
   generateToken(payload: object) {
     const secret = process.env.JWT_SECRET || 'dev-secret';
     const expiresIn = process.env.JWT_EXPIRES || '8h';

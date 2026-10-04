@@ -8,6 +8,9 @@ export class Restaurante {
   @Column()
   nombre: string;
 
+  @Column({ unique: true, nullable: true })
+  slug?: string;
+
   @Column({ nullable: true })
   direccion?: string;
 

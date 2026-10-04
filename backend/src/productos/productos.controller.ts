@@ -26,7 +26,8 @@ export class ProductosController {
   @Get()
   async findAll(@Req() req: any) {
     const restauranteId = req.restauranteId as string | undefined;
-    return this.productosService.findAvailable(restauranteId);
+    const categoria = req.query?.categoria as string | undefined;
+    return this.productosService.findAvailable(restauranteId, categoria);
   }
 
   /**
@@ -38,7 +39,8 @@ export class ProductosController {
   @Get('admin')
   async findAllAdmin(@Req() req: any) {
     const restauranteId = req.user?.restaurante_id ?? req.restauranteId;
-    return this.productosService.findAll(restauranteId);
+    const categoria = req.query?.categoria as string | undefined;
+    return this.productosService.findAll(restauranteId, categoria);
   }
 
   /**
@@ -88,5 +90,17 @@ export class ProductosController {
   async toggle(@Param('id') id: string, @Req() req: any) {
     const restauranteId = req.user?.restaurante_id ?? req.restauranteId;
     return this.productosService.toggleDisponible(id, restauranteId);
+  }
+
+  /**
+   * DELETE /api/productos/:id
+   * Elimina un producto.
+   */
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('host', 'admin')
+  @Delete(':id')
+  async delete(@Param('id') id: string, @Req() req: any) {
+    const restauranteId = req.user?.restaurante_id ?? req.restauranteId;
+    return this.productosService.delete(id, restauranteId);
   }
 }

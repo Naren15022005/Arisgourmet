@@ -1,6 +1,6 @@
+import { useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import type { ReactNode } from 'react'
 
 interface Props {
   children: ReactNode
@@ -60,6 +60,27 @@ export default function DashboardLayout({ children, title }: Props) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
+  // Estado colapsado persistido en localStorage
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('aris_sidebar_collapsed') === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  const toggleSidebar = () => {
+    setCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('aris_sidebar_collapsed', String(next))
+      } catch (err) {
+        console.error('Error saving sidebar state', err)
+      }
+      return next
+    })
+  }
+
   const handleLogout = async () => {
     await logout()
     navigate('/login')
@@ -69,48 +90,99 @@ export default function DashboardLayout({ children, title }: Props) {
     <div className="flex min-h-screen bg-cream-100">
       {/* Sidebar */}
       <aside
-        className="w-60 flex flex-col shrink-0 shadow-lg"
+        className={`flex flex-col shrink-0 shadow-lg transition-all duration-300 ease-in-out select-none ${
+          collapsed ? 'w-20' : 'w-60'
+        }`}
         style={{ background: 'var(--sidebar)' }}
       >
-        {/* Brand */}
-        <div className="px-6 pt-8 pb-6 border-b border-coffee-600">
-          <p className="text-xs font-bold tracking-widest uppercase text-peach-400 mb-1">
-            ArisGourmet
-          </p>
-          <p className="text-cream-100 font-bold text-base leading-tight truncate">
-            {user?.nombre ?? 'Restaurante'}
-          </p>
-        </div>
+        {/* Brand & Toggle Hamburger */}
+        {collapsed ? (
+          <div className="pt-7 pb-5 border-b border-coffee-600 flex flex-col items-center justify-center gap-2 px-2">
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-cream-300 hover:text-white hover:bg-coffee-600 transition-colors shadow-2xs"
+              title="Expandir menú lateral"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <div className="px-5 pt-7 pb-5 border-b border-coffee-600 flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-bold tracking-widest uppercase text-peach-400 mb-0.5 truncate">
+                ArisGourmet
+              </p>
+              <p className="text-cream-100 font-bold text-sm leading-tight truncate">
+                {user?.nombre ?? 'Restaurante'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-cream-300 hover:text-white hover:bg-coffee-600 transition-colors shrink-0"
+              title="Contraer menú lateral"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
           {navItems.map(({ to, label, icon }) => (
             <NavLink
               key={to}
               to={to}
+              title={collapsed ? label : undefined}
               className={({ isActive }) =>
-                'sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors font-medium text-xs ' +
+                `sidebar-link flex items-center rounded-xl transition-all font-medium text-xs ${
+                  collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-3 py-2.5'
+                } ` +
                 (isActive
                   ? 'bg-peach-500 text-white font-bold shadow-xs'
                   : 'text-cream-300 hover:bg-coffee-600 hover:text-white')
               }
             >
-              {icon}
-              <span>{label}</span>
+              <div className="shrink-0 flex items-center justify-center">
+                {icon}
+              </div>
+              {!collapsed && <span className="truncate">{label}</span>}
             </NavLink>
           ))}
         </nav>
 
         {/* User + logout */}
-        <div className="px-4 py-5 border-t border-coffee-600">
-          <p className="text-xs text-coffee-200 truncate mb-3">{user?.email}</p>
-          <button
-            onClick={handleLogout}
-            className="w-full text-left sidebar-link text-xs"
-          >
-            Cerrar sesion
-          </button>
-        </div>
+        {collapsed ? (
+          <div className="py-4 border-t border-coffee-600 flex flex-col items-center justify-center">
+            <button
+              onClick={handleLogout}
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-cream-300 hover:text-rose-400 hover:bg-coffee-600 transition-colors"
+              title={`Cerrar sesión (${user?.email})`}
+            >
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <div className="px-4 py-5 border-t border-coffee-600">
+            <p className="text-xs text-coffee-200 truncate mb-3">{user?.email}</p>
+            <button
+              onClick={handleLogout}
+              className="w-full text-left sidebar-link text-xs flex items-center gap-2 text-cream-300 hover:text-rose-400 hover:bg-coffee-600 px-3 py-2 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span>Cerrar sesión</span>
+            </button>
+          </div>
+        )}
       </aside>
 
       {/* Main */}

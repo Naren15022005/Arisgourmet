@@ -24,7 +24,20 @@ const ESTADOS: { key: string; label: string }[] = [
 export default function PedidosDashboard() {
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('todos')
+  const [filter, setFilterState] = useState(() => {
+    try {
+      const stored = localStorage.getItem('aris_pedidos_filter')
+      if (stored) return stored
+    } catch {}
+    return 'todos'
+  })
+
+  const setFilter = (newFilter: string) => {
+    setFilterState(newFilter)
+    try {
+      localStorage.setItem('aris_pedidos_filter', newFilter)
+    } catch {}
+  }
   const [searchMesa, setSearchMesa] = useState('')
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
   const [actionLoading, setActionLoading] = useState(false)

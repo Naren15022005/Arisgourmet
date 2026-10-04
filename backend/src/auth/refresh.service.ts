@@ -97,7 +97,7 @@ export class RefreshService {
         found.replaced_by_token_id = saved.id as any;
         await manager.save(found);
 
-        const access = this.authService.generateToken({ sub: user.id, email: user.email, role: user.role, restaurante_id: user.restaurante_id });
+        const access = await this.authService.generateTokenForUser(user);
         return { access_token: access, refresh_token: rawNew };
       });
     } catch (err) {
@@ -113,7 +113,7 @@ export class RefreshService {
       v.revoked = true;
       v.replaced_by_token_id = id;
       this.inMemory.set(token_hash, v);
-      const access = this.authService.generateToken({ sub: user.id, email: user.email, role: user.role, restaurante_id: user.restaurante_id });
+      const access = await this.authService.generateTokenForUser(user);
       return { access_token: access, refresh_token: rawNew };
     }
   }

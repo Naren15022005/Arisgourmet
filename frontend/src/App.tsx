@@ -39,6 +39,8 @@ function AppRoutes() {
 
       {/* Customer QR digital menu & ordering (public) */}
       <Route path="/mesa/:codigo" element={<MesaCliente />} />
+      <Route path="/menu/mesa/:codigo" element={<MesaCliente />} />
+      <Route path="/menu/:codigo" element={<MesaCliente />} />
 
       {/* Dashboard protected routes */}
       <Route
@@ -69,7 +71,7 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>

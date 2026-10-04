@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Unique } from 'typeorm';
 
 export enum MesaEstado {
   LIBRE = 'libre',
@@ -9,6 +9,7 @@ export enum MesaEstado {
 }
 
 @Entity({ name: 'mesa' })
+@Unique('IDX_mesa_restaurante_codigo', ['restaurante_id', 'codigo'])
 export class Mesa {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -16,7 +17,7 @@ export class Mesa {
   @Column({ name: 'restaurante_id', type: 'varchar', length: 255, nullable: true })
   restaurante_id?: string | null;
 
-  @Column({ name: 'codigo_qr', unique: true })
+  @Column({ name: 'codigo_qr' })
   codigo: string;
 
   @Column({ type: 'enum', enum: MesaEstado, default: MesaEstado.LIBRE })
@@ -30,6 +31,9 @@ export class Mesa {
 
   @Column({ name: 'ocupado_desde', type: 'timestamp', nullable: true })
   ocupado_desde?: Date | null;
+
+  @Column({ name: 'capacidad', type: 'int', default: 4 })
+  capacidad: number;
 
   @CreateDateColumn({ type: 'datetime', precision: 6 })
   created_at: Date;
